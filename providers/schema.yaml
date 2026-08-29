@@ -1,0 +1,154 @@
+# Provider entry schema.
+#
+# This file documents the shape of a provider entry (validated by
+# src/knowledge/provider-schema.ts) and is not itself loaded as a provider —
+# same treatment as README.md. Copy it to start a new entry.
+#
+# The registry records what is KNOWN about a provider, with a source for
+# each claim. If a field cannot be sourced, leave it out: absent means
+# unknown, and unknown is reported honestly rather than guessed.
+#
+# Keep these apart. They are different questions with different answers:
+#   headquarters_country                    - where the company is based
+#   legal_entities[].jurisdiction           - whose law the contracting entity answers to
+#   data_residency.storage_regions          - where data is at rest, IF the provider
+#                                              publishes a fixed set of possible locations
+#   data_residency.processing_regions       - where data is operated on, same caveat
+#   data_residency.configured_region_*      - whether THIS repository's actual configured
+#                                              region (for a customer-configurable provider
+#                                              like AWS/Azure/GCP) can be read off the code
+
+# Required. Stable identifier, lowercase and hyphenated. Must match the
+# filename (id "aws" lives in aws.yaml) — the loader rejects a mismatch.
+id: provider-id
+
+# Required. Display name.
+name: Provider Name
+
+# Required. One of:
+#   FICTIONAL  - an invented service, used by examples and tests. Never a
+#                claim about a real organization.
+#   UNVERIFIED - a real service whose facts have not been checked against an
+#                authoritative source for this deployment. Rendered with
+#                that caveat attached.
+#   VERIFIED   - every data-residency claim below carries source evidence
+#                and a checked date.
+status: UNVERIFIED
+
+# Required. One or two sentences on what the service does.
+description: >
+  One or two sentences on what the service does.
+
+# Required, at least one entry. Almost always exactly one — use more than
+# one only when the provider is reachable through genuinely different
+# backends with different residency characteristics (e.g. Claude via
+# Anthropic's own API vs. via Amazon Bedrock vs. via Google Vertex AI).
+# Modeling these as paths within one entry, rather than as separate provider
+# ids, means searching the vendor's name surfaces every path at once.
+access_paths:
+  - key: default # stable slug within this entry, e.g. "direct_api", "bedrock"
+    label: Provider Name # human-readable, shown as a heading when there's more than one path
+
+    # How this access path is recognized in a repository. Optional, but
+    # every signal here shows up in the rendered "Recognize by:" line, so
+    # skipping it isn't free — it's one less thing the agent gets told to
+    # look for.
+    signatures:
+      domains: [api.provider.example]
+      packages:
+        python: [provider-sdk]
+        javascript: ["@provider/sdk"]
+      modules:
+        python: [provider_sdk]
+        javascript: ["@provider/sdk"]
+      env_vars: [PROVIDER_API_KEY]
+      terraform_providers: [provider] # the provider block name, e.g. "aws", "datadog"
+      terraform_resource_prefixes: [provider_] # e.g. "aws_", "datadog_"
+
+    data_residency:
+      # true | false | "unknown". Whether a customer can choose where this
+      # path's data lives/is processed at all.
+      customer_configurable: unknown
+
+      # Required. Whether THIS repository's actual configured region (not
+      # the provider's general model) can be determined by reading the
+      # code — env vars, IaC, SDK client construction. This is the AWS/
+      # Azure/GCP case: the provider offers many regions, so there's no
+      # fixed list to enumerate below; what matters is whether the specific
+      # deployment's choice is visible in the repository.
+      configured_region_derivable_from_repository: false
+      configured_region_reason: >
+        Explain what to look for (or why it can't be determined) — e.g. "An
+        AWS_REGION env var or IaC region field settles this" or "No
+        customer-visible configuration exists; this path fixes its own
+        location."
+
+      # Optional. Only fill these in when the provider publishes a fixed,
+      # small set of possible locations regardless of what any one customer
+      # configures (e.g. a vendor offering a handful of named residency
+      # options, or one that publishes it offers none). Do NOT use this for
+      # an AWS/Azure/GCP-style "pick any region" provider — that's what
+      # configured_region_derivable_from_repository above is for.
+      #
+      # Each fact is either:
+      #   status: known,  values: [...], reason?, evidence?
+      #   status: unknown, reason: required, evidence?
+      #   status: not_applicable, reason: required   (e.g. no human support channel exists)
+      storage_regions:
+        status: unknown
+        reason: Not published.
+      processing_regions:
+        status: unknown
+        reason: Not published.
+      support_access_regions:
+        status: unknown
+        reason: Not published.
+      telemetry_processing_regions:
+        status: unknown
+        reason: Not published.
+
+    # Prose specific to this access path — branching nuance goes here, not
+    # in the entry-level `notes` below.
+    notes: >
+      Anything about this specific path a reviewer should know.
+
+    # Other provider ids in this registry whose region evidence applies to
+    # this path, e.g. a "bedrock" access path pointing at "aws" instead of
+    # restating AWS's region model here.
+    related_providers: []
+
+    evidence:
+      - url: https://provider.example/docs/regions
+        checked: "2026-08-25"
+
+# Optional. Bullet list rendered under "## What to look for in a
+# repository" — cross-path guidance that doesn't belong to one access path.
+what_to_look_for:
+  - What SDK/base URL/config distinguishes one access path from another.
+
+# Optional. Prose rendered under "## Notes for findings" — caveats that
+# apply to the whole entry, not one access path.
+notes: >
+  Anything a reviewer should know that doesn't fit a field above.
+
+headquarters_country: US
+
+# Optional. The entity a customer contracts with, plus any parent or
+# affiliate that matters. Physical location and legal jurisdiction are not
+# the same thing.
+legal_entities:
+  - name: Provider Inc.
+    role: contracting_entity # contracting_entity | parent | affiliate | subprocessor
+    jurisdiction: US
+
+subprocessors: []
+
+metadata:
+  last_verified: "2026-08-25" # omit rather than guess if this hasn't actually been checked
+  maintainer: who maintains this entry
+
+# Optional. Sources for the entry as a whole, as opposed to one access
+# path's evidence above.
+evidence:
+  - url: https://provider.example/trust
+    checked: "2026-08-25"

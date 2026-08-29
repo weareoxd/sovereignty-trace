@@ -1,0 +1,46 @@
+id: twilio
+name: Twilio
+status: UNVERIFIED
+description: >
+  Communications APIs for SMS, voice, phone-number operations, and related
+  messaging services.
+
+access_paths:
+  - key: default
+    label: Twilio
+    signatures:
+      domains: [api.twilio.com, messaging.twilio.com, "*.twilio.com"]
+      packages:
+        python: [twilio]
+        javascript: [twilio]
+      terraform_providers: [twilio]
+      terraform_resource_prefixes: [twilio_]
+    data_residency:
+      customer_configurable: true
+      storage_regions:
+        status: unknown
+        reason: >
+          Twilio regional API selection is product-specific; this entry
+          does not make a general storage-residency claim for Twilio.
+      processing_regions:
+        status: unknown
+        reason: >
+          Twilio regional API selection is product-specific; this entry
+          does not make a general processing-residency claim for Twilio.
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Some Twilio APIs use region-specific hostnames and credentials. A
+        region should only be inferred when the concrete endpoint/product
+        supports that interpretation.
+    evidence:
+      - url: https://www.twilio.com/docs/iam/api
+        checked: "2026-08-26"
+      - url: https://www.twilio.com/docs/global-infrastructure/using-the-twilio-rest-api-in-a-non-us-region
+        checked: "2026-08-26"
+
+notes: >
+  Do not treat api.twilio.com or a package import alone as proof of a
+  residency region.
+
+metadata:
+  last_verified: "2026-08-26"

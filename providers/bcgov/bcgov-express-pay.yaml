@@ -1,0 +1,42 @@
+id: bcgov-express-pay
+name: BC Express Pay
+status: UNVERIFIED
+description: BC Government shared e-commerce payment service administered by Provincial Treasury.
+
+access_paths:
+  - key: default
+    label: BC Express Pay
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://digital.gov.bc.ca/bcgov-common-components/bc-express-pay/
+        checked: "2026-08-26"
+
+notes: >
+  Public documentation confirms the service and its API/payment-engine
+  model but does not publish a stable application endpoint suitable for a
+  safe domain signature. This entry will not auto-match until an
+  organization adds its actual integration endpoint/signature.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

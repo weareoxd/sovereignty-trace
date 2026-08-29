@@ -1,0 +1,34 @@
+id: sonarqube-cloud
+name: SonarQube Cloud
+status: UNVERIFIED
+description: Hosted source-code quality and static-analysis service operated by SonarSource.
+
+access_paths:
+  - key: default
+    label: SonarQube Cloud
+    signatures:
+      domains: [sonarcloud.io, "*.sonarcloud.io", sonarqube.us, "*.sonarqube.us"]
+    data_residency:
+      customer_configurable: true
+      storage_regions:
+        status: known
+        values: [European Union, United States]
+        evidence:
+          - url: https://docs.sonarsource.com/sonarqube-cloud/getting-started/getting-started-in-us-region
+            checked: "2026-08-26"
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        sonarcloud.io is documented as the EU instance and sonarqube.us as
+        the US instance. Repository or CI configuration containing the host
+        can establish the selected instance.
+    evidence:
+      - url: https://docs.sonarsource.com/sonarqube-cloud/getting-started/getting-started-in-us-region
+        checked: "2026-08-26"
+
+notes: >
+  This is primarily a source-analysis destination rather than runtime
+  application-data processing. It is included because source code itself
+  can be sensitive and BC Government repositories use Sonar tooling.
+
+metadata:
+  last_verified: "2026-08-26"

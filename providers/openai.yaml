@@ -1,0 +1,61 @@
+id: openai
+name: OpenAI
+status: UNVERIFIED
+description: >
+  OpenAI's model-inference offerings, reachable both through OpenAI's own
+  API and through Microsoft's Azure OpenAI Service — a repository's evidence
+  should distinguish which one is in use before any residency claim is made.
+
+access_paths:
+  - key: direct_api
+    label: OpenAI's own API
+    signatures:
+      domains: [api.openai.com]
+      packages:
+        python: [openai]
+        javascript: [openai]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: >
+        OpenAI has offered data-residency options for some enterprise
+        customers covering specific regions (e.g. Europe); whether a given
+        account/deployment uses one is an account-level setting, not
+        something visible in application code.
+      processing_regions:
+        status: unknown
+        reason: >
+          Treat requests to the standard API base URL as processed outside
+          Canada unless there's explicit evidence (e.g. a documented
+          residency endpoint or contract) otherwise, and flag it as
+          something to verify.
+    notes: >
+      Recognized by the `openai` package pointed at `api.openai.com` (or no
+      base URL override, which defaults there).
+
+  - key: azure_openai
+    label: Azure OpenAI Service
+    signatures:
+      domains: ["*.openai.azure.com"]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Residency follows Azure's region model for the Azure OpenAI resource
+        configured — apply the microsoft-azure provider record's region
+        evidence.
+    notes: >
+      Recognized by an `AzureOpenAI` client, an `azure_endpoint`, or a
+      `*.openai.azure.com` URL. A materially different data path from
+      OpenAI's own API even when the underlying model is the same or
+      similar.
+    related_providers: [microsoft-azure]
+
+what_to_look_for:
+  - "What's actually sent: prompts, uploaded files/documents, function/tool call arguments and results, and any conversation history included in a request are all data leaving the process boundary."
+
+notes: >
+  Data retention and training-usage policies for API traffic differ from
+  ChatGPT consumer usage and can change; don't assert specific retention
+  periods or training behavior in a finding without checking OpenAI's
+  current published terms — flag it as something to verify instead.

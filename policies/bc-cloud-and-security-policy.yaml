@@ -1,0 +1,153 @@
+id: bc-cloud-and-security-policy
+title: BC Government cloud and information security policy
+status: UNVERIFIED
+jurisdiction: British Columbia, Canada
+
+summary: >
+  Summary of how the BC Government's core policy and Office of the Chief
+  Information Officer (OCIO) direction treat cloud services, information
+  security, and privacy risk, for public bodies and the systems built for
+  them. Verify against the current Core Policy and Procedures Manual and
+  OCIO published standards before relying on this for a real determination.
+
+sections:
+  - heading: Cloud use is permitted, but governed
+    body: |
+      BC Government policy allows ministries and public bodies to use cloud
+      services, including services hosted outside Canada, but expects that
+      decision to go through defined governance rather than being made ad
+      hoc by a project team:
+
+      - A privacy impact assessment (PIA) is expected before a system that
+        handles personal information goes into production, covering what
+        personal information is collected, where it's stored and
+        processed, who can access it, and what safeguards are in place.
+      - A security threat and risk assessment (STRA) is expected for
+        systems handling sensitive information or before adopting a new
+        cloud service, covering the security controls the environment
+        provides.
+      - Cloud services are expected to be evaluated against BC Government's
+        security and privacy requirements before adoption, rather than
+        assumed acceptable because a vendor is well-known.
+
+  - heading: Public cloud landing zone requirements
+    body: |
+      The B.C. government public cloud landing zones (in AWS and Azure)
+      carry two hard requirements, distinct from the general governance
+      expectations above:
+
+      - "Data and application in the B.C. government landing zones in AWS
+        and Azure must be hosted in Canadian data centres to comply with
+        B.C. government security and privacy standards."
+      - "You can host data up to and including Protected B data in the
+        public cloud. Protected C data cannot be hosted in the public
+        cloud."
+
+      Both apply specifically to a workload declared as running in a BC
+      Government public-cloud landing zone — they are not a general claim
+      about every AWS or Azure workload a public body might operate outside
+      that landing zone.
+
+  - heading: Related BC Government reference material
+    body: >
+      The OCIO publishes more detailed, frequently-updated guidance (e.g.
+      its cloud security "guardrails" and information security policy)
+      outside the Core Policy and Procedures Manual. If you have access to
+      current versions of that material, prefer it over this summary for
+      anything specific.
+
+citable_sections:
+  - id: public-cloud-landing-zone-outside-canada
+    title: Public cloud landing zone workload configured outside Canada
+    guidance: >
+      A finding that a workload declared as running in a BC Government
+      public-cloud landing zone (AWS or Azure) has a configured storage or
+      processing region outside Canada. This is one of the more directly
+      checkable claims here: if the repository declares the landing zone
+      and infrastructure evidence shows a non-Canada region, this is a
+      concrete conflict with published guidance, not just a governance
+      question — status should generally be `at_risk` unless the region is
+      a documented, approved exception.
+    authority:
+      type: government_policy
+      source: >
+        "Data and application in the B.C. government landing zones in AWS
+        and Azure must be hosted in Canadian data centres to comply with
+        B.C. government security and privacy standards."
+      reference: "digital.gov.bc.ca/technology/cloud/public/security/"
+      checked: "2026-08-28"
+      note: >
+        Quoted directly from the live page on 2026-08-28. Not reviewed by
+        this adopting organization's cloud or security team; the guidance
+        page is updated independently of this record and should be
+        re-checked before relying on this for a real determination.
+
+  - id: protected-c-in-public-cloud
+    title: Protected C classification in the public cloud
+    guidance: >
+      A finding that a system declares (or its evidence suggests) a
+      security classification of Protected C while running in, or being
+      proposed for, the BC Government public cloud. Public cloud hosting is
+      permitted only up to and including Protected B; this is a hard limit,
+      not a risk to weigh — status should generally be `violated` if both
+      facts are established, or `at_risk` if the classification itself
+      isn't confidently established from the repository.
+    authority:
+      type: government_policy
+      source: >
+        "You can host data up to and including Protected B data in the
+        public cloud. Protected C data cannot be hosted in the public
+        cloud."
+      reference: "digital.gov.bc.ca/technology/cloud/public/intro/"
+      checked: "2026-08-28"
+      note: >
+        Quoted directly from the live page on 2026-08-28. Not reviewed by
+        this adopting organization's security team; a repository rarely
+        states its own security classification explicitly, so this usually
+        depends on project metadata rather than code evidence alone.
+
+  - id: cloud-provider-outside-canada
+    title: Cloud provider outside Canada
+    guidance: >
+      A finding that infrastructure, configuration, or SDK usage points at
+      a cloud provider region outside Canada, for a workload that is *not*
+      established as a BC Government landing zone (for that case, use
+      public-cloud-landing-zone-outside-canada instead, which cites a
+      specific hard requirement). This is a fact about the code, not proof
+      a PIA/STRA was skipped; say what the code shows and note that
+      governance status can't be determined from the repository.
+    authority:
+      type: government_policy
+      source: >
+        BC Government Core Policy and Procedures Manual and OCIO cloud,
+        information security, and privacy risk-assessment direction. "Every
+        new project in the public cloud must have a STRA and PIA."
+      reference: "digital.gov.bc.ca/technology/cloud/public/security/"
+      checked: "2026-08-28"
+      note: >
+        The STRA/PIA quote was confirmed directly on 2026-08-28; the
+        general governance expectation beyond that quote is a synthesis of
+        Core Policy and Procedures Manual and OCIO direction, not a single
+        citable passage, and has not been independently reviewed by this
+        adopting organization.
+
+  - id: unmanaged-third-party-data-flow
+    title: Unmanaged third-party data flow
+    guidance: >
+      A finding that data is sent to a third-party service (SaaS API,
+      logging vendor, AI provider) whose region/governance status isn't
+      evident from the repository, e.g. no configuration pinning a region,
+      or a default region the code never overrides.
+    authority:
+      type: government_policy
+      source: >
+        BC Government Core Policy and Procedures Manual and OCIO cloud,
+        information security, and privacy risk-assessment direction.
+      note: >
+        This is a synthesis of the general governance expectation, not a
+        single citable passage. Not independently reviewed against the
+        current Core Policy and Procedures Manual or OCIO published
+        standards.
+
+related_policies:
+  - bc-foippa-overview

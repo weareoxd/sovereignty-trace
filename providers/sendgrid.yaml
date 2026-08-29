@@ -1,0 +1,56 @@
+id: sendgrid
+name: Twilio SendGrid
+status: UNVERIFIED
+description: >
+  Email delivery service operated by Twilio, with global and EU regional
+  data-residency configurations.
+
+access_paths:
+  - key: default
+    label: Twilio SendGrid
+    signatures:
+      domains: [api.sendgrid.com, api.eu.sendgrid.com, smtp.sendgrid.net, smtp.eu.sendgrid.net, "*.sendgrid.com", "*.sendgrid.net"]
+      packages:
+        python: [sendgrid]
+        javascript: ["@sendgrid/mail", "@sendgrid/*"]
+    data_residency:
+      customer_configurable: true
+      storage_regions:
+        status: known
+        values: [European Union]
+        evidence:
+          - url: https://www.twilio.com/docs/sendgrid/data-residency/locations-eu
+            checked: "2026-08-26"
+      processing_regions:
+        status: known
+        values: [European Union]
+        evidence:
+          - url: https://www.twilio.com/docs/sendgrid/data-residency/locations-eu
+            checked: "2026-08-26"
+      support_access_regions:
+        status: unknown
+        reason: >
+          Twilio documents cases where engineering or support access may
+          cause EU-resident data to be accessed outside the EU; exact
+          access geography is not established here.
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        api.eu.sendgrid.com / smtp.eu.sendgrid.net provide evidence of the
+        EU endpoint, but full EU residency also depends on the
+        account/subuser and dedicated-IP configuration documented by
+        Twilio.
+    evidence:
+      - url: https://www.twilio.com/docs/sendgrid/data-residency
+        checked: "2026-08-26"
+      - url: https://www.twilio.com/docs/sendgrid/data-residency/faq
+        checked: "2026-08-26"
+      - url: https://www.twilio.com/docs/sendgrid/api-reference/mail-send/mail-send
+        checked: "2026-08-26"
+
+notes: >
+  An EU endpoint by itself is not sufficient to prove full SendGrid EU data
+  residency. Twilio documents additional account and IP configuration
+  requirements.
+
+metadata:
+  last_verified: "2026-08-26"

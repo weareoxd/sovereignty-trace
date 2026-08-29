@@ -1,0 +1,36 @@
+id: snowflake
+name: Snowflake
+status: UNVERIFIED
+description: >
+  Cloud data platform and warehouse accessed through account-specific
+  endpoints and client connectors.
+
+access_paths:
+  - key: default
+    label: Snowflake
+    signatures:
+      domains: ["*.snowflakecomputing.com", "*.snowflakecomputing.cn"]
+      packages:
+        python: [snowflake-connector-python]
+        javascript: [snowflake-sdk]
+      terraform_providers: [snowflake]
+      terraform_resource_prefixes: [snowflake_]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Snowflake account/connection configuration may include cloud and
+        region information. Only assert a region when the repository
+        exposes it explicitly.
+    evidence:
+      - url: https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect
+        checked: "2026-08-26"
+      - url: https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-api
+        checked: "2026-08-26"
+
+notes: >
+  A snowflakecomputing.com hostname identifies Snowflake but does not by
+  itself establish the account region in all URL formats.
+
+metadata:
+  last_verified: "2026-08-26"

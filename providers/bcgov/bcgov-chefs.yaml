@@ -1,0 +1,47 @@
+id: bcgov-chefs
+name: BC Government Common Hosted Form Service (CHEFS)
+status: UNVERIFIED
+description: >
+  BC Government hosted forms service used to create forms and collect
+  submissions and uploaded files.
+
+access_paths:
+  - key: default
+    label: CHEFS
+    signatures:
+      domains: [submit.digital.gov.bc.ca]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://github.com/bcgov/common-hosted-form-service
+        checked: "2026-08-26"
+      - url: https://github.com/bcgov/cydb-submissions
+        checked: "2026-08-26"
+
+notes: >
+  The submit.digital.gov.bc.ca endpoint is publicly visible in current BC
+  Government application configuration. Actual form contents and file
+  handling remain application-specific.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

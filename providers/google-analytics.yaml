@@ -1,0 +1,36 @@
+id: google-analytics
+name: Google Analytics
+status: UNVERIFIED
+description: Google analytics service for collecting application and website usage events.
+
+access_paths:
+  - key: default
+    label: Google Analytics (GA4 Measurement Protocol)
+    signatures:
+      domains: [www.google-analytics.com, region1.google-analytics.com, "*.google-analytics.com"]
+      packages:
+        javascript: ["@google-analytics/*"]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: >
+          This entry does not establish where a specific Google Analytics
+          property stores data.
+      processing_regions:
+        status: unknown
+        reason: >
+          The collection endpoint alone is not treated as proof of the
+          storage or processing jurisdiction.
+    evidence:
+      - url: https://developers.google.com/analytics/devguides/collection/protocol/ga4/reference
+        checked: "2026-08-26"
+
+notes: >
+  The GA4 Measurement Protocol includes global and EU collection endpoints.
+  Do not equate collection endpoint with final storage location.
+
+metadata:
+  last_verified: "2026-08-26"

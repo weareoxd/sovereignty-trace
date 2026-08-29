@@ -1,0 +1,47 @@
+id: google-cloud
+name: Google Cloud Platform (GCP)
+status: UNVERIFIED
+description: >
+  Public cloud platform providing compute, storage, databases, and AI
+  services (including Vertex AI), organized into geographic regions.
+
+access_paths:
+  - key: default
+    label: GCP services
+    signatures:
+      domains: ["*.googleapis.com"]
+      packages:
+        python: ["google-cloud-*"]
+        javascript: ["@google-cloud/*"]
+      env_vars: [GOOGLE_CLOUD_PROJECT, GOOGLE_APPLICATION_CREDENTIALS]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        region/location fields in Terraform (the google provider),
+        Deployment Manager, gcloud CLI scripts, or passed to a GCP client
+        library settle this.
+    notes: >
+      GCP is organized into geographic regions (e.g. northamerica-northeast1
+      in Montreal, northamerica-northeast2 in Toronto), each with multiple
+      zones. Most storage and compute resources (Cloud Storage buckets,
+      Compute Engine disks, Cloud SQL instances, etc.) are created in a
+      specific region or multi-region location, and data stays there unless
+      the project explicitly replicates or moves it. Cloud Storage
+      additionally supports "multi-region" and "dual-region" location types
+      spanning more than one region — a multi-region like `us` is not
+      confined to a single country's worth of locations the way a single
+      region is; treat it as broader than a single-region setting rather
+      than assuming any one location. There are two Canadian regions:
+      northamerica-northeast1 (Montreal) and northamerica-northeast2
+      (Toronto).
+
+what_to_look_for:
+  - "Cloud Storage location type: a bucket's location can be a single region, a dual-region, or a multi-region (us, eu, asia) — read which kind is configured rather than assuming \"region\" always means one physical place."
+  - Vertex AI / Generative AI — Vertex AI endpoints and Gemini API calls through Vertex are region-scoped like other GCP resources; the same region-configuration evidence applies. Calls to the standalone Gemini API (not via Vertex) have different, provider-controlled processing regions — treat these differently and say so if the repository doesn't make clear which one is in use.
+  - "Global services: Cloud CDN, Cloud DNS, and parts of IAM operate globally — treat these as \"not confined to one region.\""
+
+notes: >
+  No region configured usually means GCP applies a project- or
+  service-specific default, which is not reliably Canadian — flag as
+  "region not pinned in code" rather than guessing a location.

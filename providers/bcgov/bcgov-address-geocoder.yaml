@@ -1,0 +1,46 @@
+id: bcgov-address-geocoder
+name: BC Address Geocoder
+status: UNVERIFIED
+description: >
+  BC Government REST API for validating, standardizing, and geocoding
+  physical addresses and locations.
+
+access_paths:
+  - key: default
+    label: BC Address Geocoder
+    signatures:
+      domains: [geocoder.api.gov.bc.ca]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://github.com/bcgov/api-specs/blob/master/geocoder/geocoder-developer-guide.md
+        checked: "2026-08-26"
+
+notes: >
+  The API can receive full physical addresses and return
+  standardized/geocoded location data. This entry identifies the government
+  endpoint but does not determine whether a particular address is sensitive
+  in context.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

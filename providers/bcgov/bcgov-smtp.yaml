@@ -1,0 +1,45 @@
+id: bcgov-smtp
+name: BC Government Application SMTP
+status: UNVERIFIED
+description: >
+  BC Government SMTP endpoint referenced by public BC Government
+  application repositories for outbound email.
+
+access_paths:
+  - key: default
+    label: Application SMTP
+    signatures:
+      domains: [apps.smtp.gov.bc.ca]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://github.com/bcgov/kq-api
+        checked: "2026-08-26"
+
+notes: >
+  This signature is based on public repository configuration examples
+  rather than a current public service specification, so it should be
+  validated before production use.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

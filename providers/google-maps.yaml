@@ -1,0 +1,34 @@
+id: google-maps
+name: Google Maps Platform
+status: UNVERIFIED
+description: Google APIs for maps, geocoding, places, routing, and related location services.
+
+access_paths:
+  - key: default
+    label: Google Maps Platform
+    signatures:
+      domains: [maps.googleapis.com, geocode.googleapis.com, "*.maps.googleapis.com"]
+      packages:
+        python: [googlemaps]
+        javascript: ["@googlemaps/*"]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+    evidence:
+      - url: https://developers.google.com/maps/documentation/geocoding/requests-geocoding
+        checked: "2026-08-26"
+
+notes: >
+  Location and address values sent to mapping APIs can themselves be
+  sensitive. This entry identifies the service but intentionally does not
+  make residency claims.
+
+metadata:
+  last_verified: "2026-08-26"

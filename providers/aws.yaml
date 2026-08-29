@@ -1,0 +1,49 @@
+id: aws
+name: AWS (Amazon Web Services)
+status: UNVERIFIED
+description: >
+  Public cloud platform providing compute, storage, databases, messaging,
+  monitoring, and AI services, organized into geographic regions.
+
+access_paths:
+  - key: default
+    label: AWS services
+    signatures:
+      domains: ["*.amazonaws.com", "*.api.aws"]
+      packages:
+        python: [boto3]
+        javascript: ["@aws-sdk/*"]
+      env_vars: [AWS_REGION, AWS_DEFAULT_REGION]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        AWS_REGION/AWS_DEFAULT_REGION environment variables, region: fields
+        in IaC (Terraform, CloudFormation, CDK, SAM), or a region string
+        passed to an AWS SDK client constructor settle this. No region set
+        means the SDK falls back to an environment or profile default that
+        isn't visible from the repository alone.
+    notes: >
+      AWS is organized into geographic regions (e.g. ca-central-1 in
+      Montreal, us-east-1 in Virginia), each made up of multiple isolated
+      availability zones. Data stored in a region — S3 objects, RDS/DynamoDB
+      records, EBS volumes, and so on — stays there unless the application
+      explicitly replicates or copies it elsewhere (cross-region
+      replication, manual copy jobs, a CDN with edge caching, etc.); AWS
+      does not silently move data between regions. There are two Canadian
+      regions: ca-central-1 (Montreal) and ca-west-1 (Calgary). A Canadian
+      repository does not have to use one — many BC public-sector projects
+      default to us-east-1 or another US region unless someone deliberately
+      pins a Canadian region.
+
+what_to_look_for:
+  - "Global/edge services: CloudFront, Route 53, and some parts of IAM and Cognito operate at a global or edge level rather than a single region — treat these as \"not confined to one region\" rather than assigning them a jurisdiction."
+  - Managed AI services — Bedrock, Comprehend, Rekognition, Textract, and similar are region-scoped like other AWS services; the same region-configuration evidence applies.
+  - "S3 bucket region: buckets are created in a specific region at creation time; look for the region in bucket creation code/IaC, not just the bucket name."
+
+notes: >
+  Don't assume "AWS" alone implies US storage — the region actually
+  configured (or its absence) is the evidence that matters. AWS's data
+  processing terms describe the customer as controlling where their data is
+  stored via region selection; AWS does not itself choose a region on the
+  customer's behalf.

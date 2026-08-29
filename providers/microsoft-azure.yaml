@@ -1,0 +1,49 @@
+id: microsoft-azure
+name: Microsoft Azure
+status: UNVERIFIED
+description: >
+  Public cloud platform providing compute, storage, databases, identity, and
+  AI services (including Azure OpenAI Service), organized into geographic
+  regions grouped into geographies.
+
+access_paths:
+  - key: default
+    label: Azure services
+    signatures:
+      domains: ["*.azure.com", "*.azure.net", "*.windows.net", "*.blob.core.windows.net"]
+      packages:
+        python: ["azure-*"]
+        javascript: ["@azure/*"]
+      env_vars: [AZURE_SUBSCRIPTION_ID]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        location/region fields in ARM templates, Bicep, Terraform (the
+        azurerm provider), the region passed to an Azure SDK client or
+        resource group, or a resource's region/endpoint hostname embedded in
+        a connection string (Storage, Cosmos DB, SQL Database) settle this —
+        often visible in configuration or environment variables even
+        without explicit IaC.
+    notes: >
+      Azure is organized into geographic regions, grouped into geographies
+      (e.g. "Canada" as a geography containing the canadacentral and
+      canadaeast regions). Most Azure storage and compute services keep
+      customer data in the region a resource is deployed to; Microsoft's
+      published data-residency commitments describe most core/data-storage
+      services as keeping customer data at rest within the selected
+      geography, though some services and metadata/telemetry are documented
+      exceptions — check Microsoft's current service-by-service data
+      residency documentation for anything specific. There are two Canadian
+      regions: canadacentral (Toronto) and canadaeast (Quebec City). As with
+      AWS, a project has to be configured to use them — nothing about Azure
+      defaults to Canada just because a team is Canadian.
+
+what_to_look_for:
+  - "Azure AI services: Azure OpenAI Service and Azure AI (Cognitive) Services deployments are region-scoped — look for the resource's region the same way as any other Azure resource. Azure OpenAI is a distinct offering from OpenAI's own API (see the openai provider record's azure_openai access path); a resource pinned to a Canadian region processes data differently than a direct call to OpenAI's API."
+  - "Global services: Azure Front Door, Azure CDN, and Microsoft Entra ID (Azure AD) have global/multi-region components — treat these as \"not confined to one region\" rather than assigning them a jurisdiction."
+
+notes: >
+  Distinguish "Azure OpenAI Service" from "OpenAI's API" explicitly in any
+  finding — they have different data-handling and residency characteristics
+  even though the underlying models may be related.

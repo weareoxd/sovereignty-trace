@@ -1,0 +1,36 @@
+id: datadog
+name: Datadog
+status: UNVERIFIED
+description: >
+  Hosted observability platform for metrics, traces, logs, RUM, security
+  telemetry, and related monitoring data.
+
+access_paths:
+  - key: default
+    label: Datadog
+    signatures:
+      domains: ["datadoghq.com", "*.datadoghq.com", "datadoghq.eu", "*.datadoghq.eu", "*.ddog-gov.com"]
+      packages:
+        python: [ddtrace]
+        javascript: [dd-trace, "@datadog/*"]
+      terraform_providers: [datadog]
+      terraform_resource_prefixes: [datadog_]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Datadog uses a DD_SITE/site setting and site-specific API endpoints.
+        If the repository exposes DD_SITE or a concrete site hostname, the
+        selected Datadog site can be identified.
+    evidence:
+      - url: https://docs.datadoghq.com/agent/troubleshooting/site/
+        checked: "2026-08-26"
+      - url: https://docs.datadoghq.com/api/latest/
+        checked: "2026-08-26"
+
+notes: >
+  A Datadog site identifies the service site, not automatically every
+  support-access, backup, or subprocessor location.
+
+metadata:
+  last_verified: "2026-08-26"

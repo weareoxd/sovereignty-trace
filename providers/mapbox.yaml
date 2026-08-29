@@ -1,0 +1,34 @@
+id: mapbox
+name: Mapbox
+status: UNVERIFIED
+description: Hosted mapping, search, navigation, tiles, and geospatial data APIs.
+
+access_paths:
+  - key: default
+    label: Mapbox
+    signatures:
+      domains: [api.mapbox.com, "*.mapbox.com"]
+      packages:
+        python: [mapbox]
+        javascript: [mapbox-gl, "@mapbox/*"]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+    evidence:
+      - url: https://docs.mapbox.com/api/
+        checked: "2026-08-26"
+
+notes: >
+  The API can receive coordinates, search queries, uploaded datasets, and
+  other geospatial information. This entry identifies the destination but
+  makes no residency claim.
+
+metadata:
+  last_verified: "2026-08-26"

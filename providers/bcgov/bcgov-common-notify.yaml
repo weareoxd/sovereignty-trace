@@ -1,0 +1,45 @@
+id: bcgov-common-notify
+name: BC Government Common Notify
+status: UNVERIFIED
+description: >
+  BC Government multi-tenant notification service providing a unified API
+  for email, SMS, and third-party message delivery.
+
+access_paths:
+  - key: default
+    label: Common Notify
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://github.com/bcgov/common-notify
+        checked: "2026-08-26"
+
+notes: >
+  The public repository confirms the service and its downstream-provider
+  abstraction but does not expose a stable production hostname in the
+  material used for this entry — add the deployed endpoint locally for
+  matching. Downstream SMTP/SMS/messaging providers should remain separate
+  provider records when known.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

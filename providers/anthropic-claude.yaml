@@ -1,0 +1,79 @@
+id: anthropic-claude
+name: Anthropic Claude
+status: UNVERIFIED
+description: >
+  Anthropic's Claude models, reachable through several different offerings
+  with different data-processing locations — a repository's evidence should
+  distinguish which one is in use before any residency claim is made.
+
+access_paths:
+  - key: direct_api
+    label: Anthropic's own API
+    signatures:
+      domains: [api.anthropic.com]
+      packages:
+        javascript: ["@anthropic-ai/sdk", "@anthropic-ai/claude-agent-sdk"]
+        python: [anthropic]
+    data_residency:
+      customer_configurable: false
+      configured_region_derivable_from_repository: false
+      configured_region_reason: >
+        This path has no customer-selectable region — there is nothing in a
+        repository's configuration that would indicate one.
+      processing_regions:
+        status: unknown
+        reason: >
+          Anthropic does not publish a customer-selectable region for this
+          API. Treat requests as processed outside Canada unless Anthropic's
+          current documentation says otherwise for the account/plan in
+          question — check current terms rather than assuming.
+    notes: >
+      Recognized by `@anthropic-ai/sdk` or `@anthropic-ai/claude-agent-sdk`,
+      or a bare HTTPS call to `api.anthropic.com`.
+
+  - key: bedrock
+    label: Claude via Amazon Bedrock
+    signatures:
+      packages:
+        python: [boto3]
+        javascript: ["@aws-sdk/client-bedrock-runtime"]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Requests go through Bedrock in whatever AWS region the Bedrock
+        client/resource is configured for — apply the aws provider record's
+        region evidence, not a fixed Anthropic-controlled location.
+    notes: >
+      ca-central-1 availability for Bedrock, and for specific models within
+      it, should be checked against AWS's current region/service tables —
+      not every Bedrock region carries every model.
+    related_providers: [aws]
+
+  - key: vertex_ai
+    label: Claude via Google Cloud Vertex AI
+    signatures:
+      packages:
+        python: ["google-cloud-aiplatform"]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Residency follows GCP's region model for the Vertex endpoint
+        configured — apply the google-cloud provider record's region
+        evidence, not a fixed Anthropic-controlled location.
+    notes: >
+      Same idea as the Bedrock path: this is a region-scoped GCP data path,
+      not a fixed Anthropic-controlled one.
+    related_providers: [google-cloud]
+
+what_to_look_for:
+  - Which SDK/package and base URL are in use — `@anthropic-ai/sdk` or a bare HTTPS call to `api.anthropic.com` indicates the direct API path; a Bedrock or Vertex AI client/SDK indicates one of the region-scoped paths above.
+  - What's actually sent in the request — system prompts, user content, attached files/documents, and tool results Claude sees as part of the conversation are all data leaving the process boundary, not just the final response.
+
+notes: >
+  Data retention and training-usage policies for API traffic (as opposed to
+  consumer Claude.ai usage) are governed by Anthropic's commercial terms and
+  can change; don't assert specific retention periods or training behavior
+  in a finding without checking Anthropic's current published terms — flag
+  it as something to verify instead.

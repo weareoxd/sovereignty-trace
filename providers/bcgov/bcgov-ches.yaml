@@ -1,0 +1,47 @@
+id: bcgov-ches
+name: BC Government Common Hosted Email Service (CHES)
+status: UNVERIFIED
+description: >
+  BC Government shared email API used by applications to send messages
+  through a centrally operated service.
+
+access_paths:
+  - key: default
+    label: CHES
+    signatures:
+      domains: [ches.api.gov.bc.ca, ches-dev.api.gov.bc.ca, ches-test.api.gov.bc.ca]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://github.com/bcgov/common-hosted-email-service/blob/master/app/README.md
+        checked: "2026-08-26"
+      - url: https://bcgov.github.io/common-service-showcase/assets/files/common_services_postman_readme
+        checked: "2026-08-26"
+
+notes: >
+  Public documentation establishes the hosted CHES API endpoints and
+  service implementation. This entry does not assert the location of
+  downstream SMTP delivery infrastructure.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

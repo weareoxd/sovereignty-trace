@@ -1,0 +1,118 @@
+id: bc-foippa-overview
+title: "BC FOIPPA: storage and access location of personal information"
+status: UNVERIFIED
+jurisdiction: British Columbia, Canada
+
+summary: >
+  Summary of the storage-location rules in British Columbia's Freedom of
+  Information and Protection of Privacy Act (FOIPPA), as they apply to
+  public bodies (ministries, health authorities, school districts,
+  municipalities, Crown corporations, and other bodies the Act covers).
+  Verify against the current text of the Act and its regulations before
+  relying on this for a real determination — this is a plain-language
+  summary for grounding technical findings, not a legal reading.
+
+sections:
+  - heading: Background
+    body: |
+      Before November 2021, FOIPPA required public bodies to store personal
+      information only in Canada and to permit access to it only from
+      within Canada, subject to narrow exceptions (e.g. the individual's
+      consent, or disclosure otherwise permitted under the Act).
+
+      In November 2021, BC amended FOIPPA to remove that blanket residency
+      requirement. Public bodies may now store and allow access to personal
+      information outside Canada, but the Act still requires them to
+      protect it, and BC Government policy layers additional
+      risk-assessment and safeguard requirements on top of the legislative
+      floor (see the bc-cloud-and-security-policy record).
+
+  - heading: What this means for a repository assessment
+    body: |
+      The amendment means "personal information leaves Canada" is no
+      longer, by itself, a FOIPPA violation for a BC public-body system —
+      but it is still a material fact, because:
+
+      - The Personal Information Disclosure for Storage Outside of Canada
+        Regulation, made under s. 33.1, requires a public body to conduct
+        an assessment before *sensitive* personal information is disclosed
+        for storage outside Canada. Two categories are exempt: a
+        program/project/system already in existence when the Regulation
+        was enacted, and information made public under an enactment per
+        s. 33(2)(f). A repository can't show whether this assessment was
+        done — only that data appears headed outside Canada.
+      - It also triggers the separate risk-assessment and safeguard
+        obligations described in core policy and OCIO direction, which a
+        repository's code can't satisfy on its own (they're
+        organizational/contractual controls, not code).
+      - Some ministries, program areas, or specific data types (e.g. health
+        information under other statutes) may have their own residency
+        requirements stricter than the FOIPPA floor.
+      - Public-sector procurement and contracts commonly still require
+        Canadian data residency as a contract term even where the Act
+        itself no longer mandates it — a repository can be technically
+        FOIPPA-compliant while still breaching a specific contract or
+        ministry policy.
+
+citable_sections:
+  - id: personal-information-outside-canada
+    title: Personal information outside Canada
+    guidance: >
+      A finding about personal information being stored or processed
+      outside Canada. Status should generally be `at_risk` rather than
+      `violated` unless there's evidence the storing entity is a BC public
+      body with no compensating safeguard, since the 2021 amendment removed
+      the flat prohibition.
+    authority:
+      type: legislation
+      source: >
+        Freedom of Information and Protection of Privacy Act (British
+        Columbia), s. 33.1: "A public body may disclose personal
+        information outside of Canada only if the disclosure is in
+        accordance with the regulations, if any, made by the minister
+        responsible for this Act." Amended in November 2021 to remove the
+        prior blanket requirement that personal information be stored and
+        accessed only from within Canada. The Personal Information
+        Disclosure for Storage Outside of Canada Regulation, made under
+        this section, requires an assessment for *sensitive* personal
+        information specifically (see the section above) — s. 33.1 itself
+        does not.
+      reference: "FOIPPA s. 33.1"
+      checked: "2026-08-28"
+      note: >
+        Section text confirmed directly against bclaws.gov.bc.ca and the
+        FOIPPA policy manual (www2.gov.bc.ca/.../foippa-manual/
+        disclosure-outside-canada) on 2026-08-28. Not reviewed by legal
+        counsel or this adopting organization's privacy office — the
+        Regulation's current exemptions should be re-confirmed against its
+        current text before relying on this for a real determination.
+
+  - id: access-from-outside-canada
+    title: Access from outside Canada
+    guidance: >
+      A finding about systems or personnel able to access personal
+      information from outside Canada (e.g. a support vendor with offshore
+      access), which raises the same considerations as storage location.
+    authority:
+      type: legislation
+      source: >
+        Freedom of Information and Protection of Privacy Act (British
+        Columbia), s. 33.1. Amended in November 2021 to remove the prior
+        blanket requirement that personal information be stored and
+        accessed only from within Canada; access from outside Canada is
+        governed by the same disclosure regime as storage.
+      reference: "FOIPPA s. 33.1"
+      checked: "2026-08-28"
+      note: >
+        Section text confirmed directly against bclaws.gov.bc.ca and the
+        FOIPPA policy manual (www2.gov.bc.ca/.../foippa-manual/
+        disclosure-outside-canada) on 2026-08-28. Not reviewed by legal
+        counsel or this adopting organization's privacy office.
+
+out_of_scope:
+  - "Health-sector-specific residency rules (e.g. under the E-Health (Personal Health Information Access and Protection of Privacy) Act)."
+  - Federal legislation (PIPEDA) or other provinces' equivalents.
+  - Contractual data-residency commitments specific to a ministry or program.
+
+related_policies:
+  - bc-cloud-and-security-policy

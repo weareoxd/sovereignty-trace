@@ -1,0 +1,54 @@
+id: bcgov-openshift
+name: BC Government Private Cloud OpenShift
+status: UNVERIFIED
+description: >
+  BC Government Private Cloud Platform as a Service powered by Red Hat
+  OpenShift and hosted in government data centres.
+
+access_paths:
+  - key: default
+    label: Private Cloud OpenShift
+    signatures:
+      domains: ["*.apps.silver.devops.gov.bc.ca", "*.apps.gold.devops.gov.bc.ca"]
+    data_residency:
+      customer_configurable: false
+      storage_regions:
+        status: known
+        values: [Canada]
+        evidence:
+          - url: https://digital.gov.bc.ca/technology/cloud/private/intro/
+            checked: "2026-08-26"
+      processing_regions:
+        status: known
+        values: [Canada]
+        evidence:
+          - url: https://digital.gov.bc.ca/technology/cloud/private/intro/
+            checked: "2026-08-26"
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Platform documentation places Silver in Kamloops and Gold across
+        Kamloops and Calgary. An OpenShift route can establish that a
+        destination is on the BC Government private-cloud platform,
+        although it may not identify a specific physical site.
+
+notes: >
+  BC Government documents all Private Cloud PaaS platform and application
+  data as hosted in Canada. Silver is in Kamloops; Gold has Kamloops with
+  Calgary geographic failover. Emerald details should be validated
+  separately if an assessment needs tier-specific conclusions.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://digital.gov.bc.ca/technology/cloud/private/intro/
+    checked: "2026-08-26"
+  - url: https://digital.gov.bc.ca/technology/cloud/private/products-tools/hosting-tiers/
+    checked: "2026-08-26"
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

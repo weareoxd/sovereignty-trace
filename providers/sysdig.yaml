@@ -1,0 +1,34 @@
+id: sysdig
+name: Sysdig
+status: UNVERIFIED
+description: Cloud and container security and monitoring platform with region-specific SaaS endpoints.
+
+access_paths:
+  - key: default
+    label: Sysdig
+    signatures:
+      domains: ["*.sysdig.com", "*.sysdigcloud.com"]
+      packages:
+        python: [sdcclient]
+      terraform_providers: [sysdig]
+      terraform_resource_prefixes: [sysdig_]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Sysdig SaaS uses region-specific API and application hostnames.
+        When one of those hostnames is present, the selected SaaS region
+        can be inferred; do not infer a region from a generic package
+        import alone.
+    evidence:
+      - url: https://docs.sysdig.com/en/developer-tools/sysdig-api/
+        checked: "2026-08-26"
+      - url: https://docs.sysdig.com/en/administration/saas-regions-and-ip-ranges/
+        checked: "2026-08-26"
+
+notes: >
+  Recognizing a regional endpoint does not equate a SaaS region with every
+  storage, processing, telemetry, or support-access claim.
+
+metadata:
+  last_verified: "2026-08-26"

@@ -1,0 +1,96 @@
+# Policy document schema.
+#
+# This file documents the shape of a policy document (validated by
+# src/knowledge/policy-schema.ts) and is not itself loaded as a policy
+# record — same treatment as README.md. Copy it to start a new entry.
+#
+# A policy document is grounding text for the coding agent, not a rule the
+# code evaluates: the agent judges alignment itself, citing
+# policyReference.id / policyReference.section (see
+# src/assessment/schema.ts). What structure buys here is a checkable
+# citable_sections[].id instead of a freehand Markdown anchor convention,
+# and a per-citation authority block that says what was actually verified
+# and when — absent a checked date means exactly that: nobody has recorded
+# checking it, so treat it as unverified regardless of the document's
+# top-level status.
+
+# Required. Stable identifier, lowercase and hyphenated. Must match the
+# filename (id "bc-foippa-overview" lives in bc-foippa-overview.yaml) — the
+# loader rejects a mismatch.
+id: policy-id
+
+# Required. Display name, shown as the document's H1.
+title: Policy Document Title
+
+# Required. One of:
+#   UNVERIFIED - a real framework whose citations have not had independent
+#                legal/policy review by the adopting organization. Treat as
+#                a starting reference, not a legal source.
+#   VERIFIED   - every citable_sections[].authority below carries a checked
+#                date and has had that review.
+status: UNVERIFIED
+
+# Optional. e.g. "British Columbia, Canada".
+jurisdiction: Jurisdiction Name
+
+# Required. One or two paragraphs of background, shown before any section
+# headings — what framework this covers and its overall caveat.
+summary: >
+  One or two paragraphs of background context.
+
+# Optional. Ordered background/context sections, rendered as-is under their
+# own heading. Not individually citable — for that, use citable_sections
+# below. Use a literal block (|), not a folded one (>), for any body that
+# contains a bullet list — folded scalars collapse single newlines to
+# spaces, which destroys list formatting.
+sections:
+  - heading: Section Heading
+    body: |
+      Prose for this section. Use a bullet list here if useful:
+
+      - First point.
+      - Second point.
+
+# Required, at least one entry. What "Findings this document supports" was
+# in the old freehand Markdown — each entry's `id` is the value a
+# policyAlignment finding's `policyReference.section` cites.
+citable_sections:
+  - id: some-finding-kind
+    title: Human-readable title for this finding kind
+    # What kind of finding this section supports, and how to characterize
+    # it (aligned/at_risk/violated/not_applicable/unknown — see
+    # PolicyAlignmentStatusSchema). Guidance for the citing agent, not a
+    # rule the code evaluates.
+    guidance: >
+      What this citable section is for, and how a citing finding should
+      characterize its status.
+
+    # Optional but strongly recommended for anything citing a real
+    # legislative or policy source.
+    authority:
+      # legislation - a specific act/regulation. government_policy - a core
+      # policy manual, OCIO standard, or similar published direction that
+      # isn't itself law. practice - no citable source; this section exists
+      # for a structural reason, not a legal one.
+      type: legislation
+      source: >
+        What this cites, in words a reader can act on without following the
+        reference.
+      reference: "Act s. 00" # short citation
+      checked: "2026-08-25" # omit rather than guess if this hasn't actually been checked
+      note: >
+        Caveats about the citation itself — what was and wasn't verified,
+        what might have changed since.
+
+# Optional. What this document deliberately does not cover. Flag as open
+# questions in a finding, not guesses.
+out_of_scope:
+  - What this document does not address.
+
+# Optional. Other policy record ids (filenames without .yaml) this document
+# cross-references.
+related_policies: []
+
+metadata:
+  last_reviewed: "2026-08-25" # omit rather than guess if this hasn't actually been checked
+  maintainer: who maintains this entry

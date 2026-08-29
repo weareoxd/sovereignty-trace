@@ -1,0 +1,39 @@
+id: sentry
+name: Sentry
+status: UNVERIFIED
+description: >
+  Application monitoring and error-tracking service that can receive stack
+  traces, request context, identifiers, and other telemetry.
+
+access_paths:
+  - key: default
+    label: Sentry
+    signatures:
+      domains: [sentry.io, "*.sentry.io"]
+      packages:
+        python: [sentry-sdk]
+        javascript: ["@sentry/*"]
+    data_residency:
+      customer_configurable: true
+      storage_regions:
+        status: known
+        values: [United States, Germany]
+        evidence:
+          - url: https://docs.sentry.io/api/
+            checked: "2026-08-26"
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        Sentry documents us.sentry.io and de.sentry.io as region-specific
+        domains. A region-specific API/DSN hostname can therefore provide
+        evidence of the organization region; generic sentry.io does not.
+    evidence:
+      - url: https://docs.sentry.io/api/
+        checked: "2026-08-26"
+
+notes: >
+  Error telemetry can include sensitive application context. Treat region
+  identification separately from what data the SDK is configured to
+  capture.
+
+metadata:
+  last_verified: "2026-08-26"

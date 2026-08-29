@@ -1,0 +1,34 @@
+id: esri-arcgis
+name: Esri ArcGIS
+status: UNVERIFIED
+description: >
+  Esri-hosted ArcGIS Online and location services used for mapping,
+  geocoding, routing, and geospatial processing. ArcGIS Enterprise can also
+  be self-hosted; this entry is intended for Esri-hosted ArcGIS/Location
+  Services endpoints — do not apply it to arbitrary self-hosted ArcGIS
+  domains.
+
+access_paths:
+  - key: default
+    label: ArcGIS Online / Location Services
+    signatures:
+      domains: ["*.arcgis.com", "*.arcgisonline.com"]
+      packages:
+        python: [arcgis]
+        javascript: ["@arcgis/*"]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+    evidence:
+      - url: https://developers.arcgis.com/documentation/glossary/arcgis-rest-apis/
+        checked: "2026-08-26"
+
+metadata:
+  last_verified: "2026-08-26"

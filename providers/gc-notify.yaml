@@ -1,0 +1,37 @@
+id: gc-notify
+name: GC Notify
+status: UNVERIFIED
+description: >
+  Government of Canada notification service for sending email and SMS
+  messages from public-sector applications.
+
+access_paths:
+  - key: default
+    label: GC Notify
+    signatures:
+      domains: [api.notification.canada.ca, "*.notification.canada.ca"]
+      packages:
+        python: [notifications-python-client]
+        javascript: [notifications-node-client]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+    evidence:
+      - url: https://documentation.notification.canada.ca/en/start.html
+        checked: "2026-08-26"
+
+notes: >
+  Government-operated destination. Do not assume Canadian operation alone
+  proves all storage, processing, or support-access details for a specific
+  integration.
+
+headquarters_country: CA
+metadata:
+  last_verified: "2026-08-26"

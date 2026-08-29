@@ -1,0 +1,45 @@
+id: bcgov-coms
+name: BC Government Common Object Management Service / Object Storage
+status: UNVERIFIED
+description: >
+  BC Government common service for managing access to S3-compatible
+  objects, commonly backed by the NRS object-store endpoint.
+
+access_paths:
+  - key: default
+    label: COMS
+    signatures:
+      domains: [nrs.objectstore.gov.bc.ca]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://github.com/bcgov/common-object-management-service/blob/master/app/README.md
+        checked: "2026-08-26"
+
+notes: >
+  COMS itself may be self-hosted with an application-specific route. The
+  stable signature here identifies the documented BC Government object-store
+  endpoint; custom COMS routes may require a local provider override.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

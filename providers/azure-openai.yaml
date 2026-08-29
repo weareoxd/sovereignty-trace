@@ -1,0 +1,40 @@
+id: azure-openai
+name: Azure OpenAI Service
+status: UNVERIFIED
+description: >
+  Microsoft Azure service exposing OpenAI models through Azure-hosted
+  resources and endpoints. Kept separate from the generic microsoft-azure
+  entry because AI processing and model availability have service-specific
+  regional rules.
+
+access_paths:
+  - key: default
+    label: Azure OpenAI Service
+    signatures:
+      domains: ["*.openai.azure.com"]
+      packages:
+        python: [openai]
+        javascript: [openai]
+      terraform_providers: [azurerm]
+      terraform_resource_prefixes: [azurerm_cognitive_account, azurerm_ai_]
+    data_residency:
+      customer_configurable: true
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        The Azure resource location may be present in Terraform or
+        deployment configuration. The endpoint hostname alone does not
+        prove the resource region.
+    related_providers: [microsoft-azure, openai]
+    evidence:
+      - url: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/reference
+        checked: "2026-08-26"
+      - url: https://learn.microsoft.com/en-us/azure/reliability/regions-list
+        checked: "2026-08-26"
+
+notes: >
+  See the microsoft-azure provider record's region evidence for the
+  configured Azure resource location once one is found in the repository.
+
+headquarters_country: US
+metadata:
+  last_verified: "2026-08-26"

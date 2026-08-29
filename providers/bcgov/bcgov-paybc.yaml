@@ -1,0 +1,46 @@
+id: bcgov-paybc
+name: PayBC
+status: UNVERIFIED
+description: >
+  BC Government online payment service used by ministries and other
+  eligible public-sector organizations.
+
+access_paths:
+  - key: default
+    label: PayBC
+    signatures:
+      domains: [pay.gov.bc.ca]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://pay.gov.bc.ca/
+        checked: "2026-08-26"
+
+notes: >
+  Payment flows can involve additional processors and banking
+  infrastructure not represented by the pay.gov.bc.ca destination alone.
+  Extend the registry when those downstream providers are visible in code
+  or contracts.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

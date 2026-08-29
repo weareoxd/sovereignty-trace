@@ -1,0 +1,47 @@
+id: bcgov-cdogs
+name: BC Government Common Document Generation Service (CDOGS)
+status: UNVERIFIED
+description: >
+  BC Government REST service that generates PDF and office-document formats
+  from templates and structured data.
+
+access_paths:
+  - key: default
+    label: CDOGS
+    signatures:
+      domains: [cdogs.api.gov.bc.ca, cdogs-dev.api.gov.bc.ca, cdogs-test.api.gov.bc.ca]
+    data_residency:
+      customer_configurable: unknown
+      configured_region_derivable_from_repository: false
+      configured_region_reason: Not established from the sources used for this entry.
+      storage_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      processing_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the public sources used for this entry.
+    evidence:
+      - url: https://digital.gov.bc.ca/bcgov-common-components/common-document-generation-service/
+        checked: "2026-08-26"
+      - url: https://bcgov.github.io/common-service-showcase/assets/files/common_services_postman_readme
+        checked: "2026-08-26"
+
+notes: >
+  CDOGS accepts structured data and templates to generate documents. Treat
+  submitted document content as an application data flow even when the
+  generated file is returned immediately.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

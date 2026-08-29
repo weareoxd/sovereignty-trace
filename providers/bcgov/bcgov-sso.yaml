@@ -1,0 +1,51 @@
+id: bcgov-sso
+name: BC Government SSO / Pathfinder SSO
+status: UNVERIFIED
+description: >
+  BC Government shared Keycloak-based single sign-on service for workforce
+  and public-sector application authentication.
+
+access_paths:
+  - key: default
+    label: Pathfinder SSO
+    signatures:
+      domains: [loginproxy.gov.bc.ca, "*.loginproxy.gov.bc.ca"]
+    data_residency:
+      customer_configurable: false
+      storage_regions:
+        status: known
+        values: [Canada]
+        evidence:
+          - url: https://digital.gov.bc.ca/bcgov-common-components/pathfinder-sso/
+            checked: "2026-08-26"
+      processing_regions:
+        status: known
+        values: [Canada]
+        evidence:
+          - url: https://digital.gov.bc.ca/bcgov-common-components/pathfinder-sso/
+            checked: "2026-08-26"
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        loginproxy.gov.bc.ca and its environment-specific subdomains
+        identify the BC Government shared SSO service; the service
+        documentation states it is hosted in Kamloops and Calgary.
+
+notes: >
+  Pathfinder SSO is documented as hosted on BC Government Private Cloud
+  OpenShift in Kamloops and Calgary. Identity-provider data paths can still
+  involve other identity systems, so this entry covers the SSO service
+  itself.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-26"
+evidence:
+  - url: https://digital.gov.bc.ca/bcgov-common-components/pathfinder-sso/
+    checked: "2026-08-26"
+  - url: https://github.com/bcgov/pubcode/blob/main/schema/bcgovpubcode.json
+    checked: "2026-08-26"

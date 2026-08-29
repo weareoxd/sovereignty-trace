@@ -1,0 +1,40 @@
+{
+  "name": "sovereignty-graph",
+  "version": "0.1.0",
+  "description": "Data-sovereignty assessments of software repositories, performed by an existing coding agent under a fixed methodology and validated against provider and policy reference material.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "sovereignty-graph": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "providers",
+    "policies",
+    "prompts"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "postbuild": "chmod +x dist/cli.js dist/agents/sg-mcp-server.js",
+    "dev": "tsx src/cli.ts",
+    "assess": "tsx src/cli.ts assess",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.250",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "commander": "^15.0.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

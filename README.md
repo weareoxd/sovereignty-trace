@@ -55,6 +55,7 @@ Options:
 | `--json <file>` | Also write the raw structured assessment as JSON |
 | `--html [file]` | Also write an HTML report and open it automatically once the assessment completes. If `file` is omitted, it's written to `./output/` (gitignored). |
 | `--no-open` | With `--html`, write the HTML report but don't open it |
+| `--max-repair-rounds <n>` | How many times to hand unverifiable evidence citations back to the agent to correct (default 2; `0` disables) |
 | `-q, --quiet` | Suppress progress output |
 
 Requires Claude Code SDK authentication to be configured in your
@@ -77,13 +78,52 @@ if (validation.assessment) {
 }
 ```
 
+### Evidence verification
+
+Every `evidence[]` entry a finding cites is checked against the repository
+after the session: the file must exist, and the `snippet` must actually appear
+in it. A citation the agent produced through `sg_cite_evidence` also carries an
+`evidenceId`, which only re-derives from the real text at the cited lines.
+
+Citations that fail are handed back to the same session to correct, up to
+`--max-repair-rounds` times. Anything still unverified is marked on the
+specific evidence line and finding in the report, rather than discrediting the
+whole assessment. Findings are never dropped for a bad citation: a fabricated
+reference does not make the finding wrong, so the report flags it and leaves
+the judgement to a reader.
+
+The two agent runtimes reach that point differently. Claude Code constrains its
+final answer with `outputFormat: json_schema`, so a malformed document can't be
+returned in the first place, and `--max-repair-rounds` resumes the session to
+fix citations. swival has neither: no schema-constrained output, and
+`agentCapabilities.loadSession: false`, so a session can't be resumed after it
+ends. Instead `reviewUntilAcceptable` in
+[swival.ts](src/agents/swival.ts) reviews the answer against the same schema and
+evidence rules while the session is still open, and prompts for a correction
+until it passes. That is what keeps a null in an optional field, or a
+hallucinated citation, from ending the run.
+
+## Development
+
+```sh
+npm run typecheck   # tsc --noEmit over src/, tests included
+npm test            # node:test via tsx; no test framework dependency
+npm run build       # tsconfig.build.json, which excludes *.test.ts from dist/
+```
+
 ## Repository layout
 
 ```
 src/
   agents/         CodingAgent interface + adapters (Claude Code implemented; Codex/Copilot placeholders)
     sg-tools.ts   exposes SG knowledge to Claude Code as MCP tools (sg_search_providers, ...)
+    sg-repo-tool-defs.ts  sg_cite_evidence: reads a line range and mints its citation handle
   assessment/     methodology (instructions-only), structured assessment schema, validation
+    validation.ts       evidence/provider/policy checking, per-finding taint
+    review.ts           accept/retry gate applied to an answer before a session ends
+    evidence-handle.ts  mints and re-derives the sg_cite_evidence handle
+    nearest-path.ts     suggests the file a bad citation most likely meant
+    repair.ts           builds the follow-up prompt for an evidence repair round
   knowledge/      read-only SG knowledge API: searchProviders/getProvider, searchPolicies/getPolicy, ...
   cli.ts          CLI entrypoint
   prompts.ts      loads prompts/ (role + methodology instructions)

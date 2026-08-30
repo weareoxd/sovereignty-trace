@@ -11,6 +11,13 @@ export interface RepositoryInfo {
   primaryLanguages: string[];
   /** Total number of files tracked/found in the repository. */
   fileCount: number;
+  /**
+   * Repository-relative paths of every file found. Carried on the result so
+   * consumers that need the listing (evidence validation's nearest-path
+   * suggester, the repository evidence tools) reuse this one `git ls-files`
+   * rather than re-shelling it.
+   */
+  files: string[];
   /** Non-blank, non-comment patterns from the repository root's `.gitignore`, if present. */
   ignoredPatterns: string[];
 }
@@ -60,7 +67,7 @@ const EXTENSION_LANGUAGE: Record<string, string> = {
 export async function gatherRepositoryInfo(repositoryPath: string): Promise<RepositoryInfo> {
   const [commit, files, ignoredPatterns] = await Promise.all([
     getGitCommit(repositoryPath),
-    listFiles(repositoryPath),
+    listRepositoryFiles(repositoryPath),
     readGitignorePatterns(repositoryPath),
   ]);
 
@@ -69,6 +76,7 @@ export async function gatherRepositoryInfo(repositoryPath: string): Promise<Repo
     commit,
     primaryLanguages: detectPrimaryLanguages(files),
     fileCount: files.length,
+    files,
     ignoredPatterns,
   };
 }
@@ -105,7 +113,12 @@ async function getGitCommit(repositoryPath: string): Promise<string | undefined>
   }
 }
 
-async function listFiles(repositoryPath: string): Promise<string[]> {
+/**
+ * Lists every file in the repository as a repository-relative path, using
+ * `git ls-files` where possible and falling back to a directory walk that
+ * skips dependency/build directories.
+ */
+export async function listRepositoryFiles(repositoryPath: string): Promise<string[]> {
   try {
     const { stdout } = await execFileAsync("git", ["ls-files"], { cwd: repositoryPath, maxBuffer: 1024 * 1024 * 32 });
     const files = stdout.split("\n").filter(Boolean);

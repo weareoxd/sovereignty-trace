@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { reviewAssessmentOutput } from "../assessment/review.js";
 import type {
   CodingAgent,
   CodingAgentEvent,
@@ -34,18 +35,61 @@ import type {
  *   produces a session that ends cleanly (`stopReason: "end_turn"`) but
  *   carries no usable answer, and the draft file lands inside the repository
  *   being assessed. See buildPromptText() / resolveFinalAnswer() below.
+ * - `--reviewer` (swival's own accept/retry hook for validating an answer)
+ *   is accepted on the command line alongside `--acp` but is never invoked
+ *   in ACP mode — the docs' "requires a task" caveat means it only wraps a
+ *   command-line task. Verified by probe: a reviewer that logs every call
+ *   was never called across a full ACP prompt turn. reviewUntilAcceptable()
+ *   therefore runs the same accept/retry loop from this side, over
+ *   `session/prompt`, which does work.
  */
+/**
+ * How the agent's final answer is held to the schema. swival has no
+ * protocol-level equivalent of Claude Code's `outputFormat: json_schema`, but
+ * it does have `--reviewer`: an executable it calls after every answer, whose
+ * exit code decides whether the answer is accepted or sent back for another
+ * attempt with feedback. Pointing that at the same schema and evidence rules
+ * validation applies afterwards turns "accept whatever arrives, then salvage
+ * it" into a constraint the agent has to satisfy before finishing.
+ */
+export interface SwivalReviewOptions {
+  /**
+   * Review rounds swival may spend correcting an answer. Kept well below
+   * swival's own default of 15 because each round re-emits the whole
+   * assessment; `runAssessment`'s repair loop is the backstop.
+   */
+  maxRounds?: number;
+  /**
+   * Also reject findings whose citations don't verify, not just documents
+   * that don't parse.
+   */
+  requireEvidence?: boolean;
+  /** Set false to run without a reviewer (the pre-1.0.41 behavior). */
+  enabled?: boolean;
+}
+
 export class SwivalAgent implements CodingAgent {
   readonly name = "swival";
 
-  constructor(private readonly binary: string = "swival") {}
+  constructor(
+    private readonly binary: string = "swival",
+    private readonly review: SwivalReviewOptions = {},
+  ) {}
 
   startSession(options: CodingAgentSessionOptions): CodingAgentSession {
-    return new SwivalSession(options, this.binary);
+    return new SwivalSession(options, this.binary, this.review);
   }
 }
 
 const SG_MCP_SERVER_PATH = join(dirname(fileURLToPath(import.meta.url)), "sg-mcp-server.js");
+
+/** The final answer as resolved from the output file or the chat message. */
+interface ResolvedAnswer {
+  error?: string;
+  stopReason: string | undefined;
+  text: string;
+  structuredOutput: unknown;
+}
 
 interface JsonRpcMessage {
   jsonrpc: "2.0";
@@ -78,6 +122,7 @@ class SwivalSession implements CodingAgentSession {
   constructor(
     private readonly options: CodingAgentSessionOptions,
     private readonly binary: string,
+    private readonly review: SwivalReviewOptions,
   ) {
     if (options.resumeSessionId) {
       throw new Error(
@@ -132,7 +177,7 @@ class SwivalSession implements CodingAgentSession {
       // access to below — one temp dir, cleaned up together in `finally`.
       scratchDir = await mkdtemp(join(tmpdir(), "sovereignty-graph-swival-"));
       const mcpConfigPath = join(scratchDir, "mcp.json");
-      await writeFile(mcpConfigPath, sgMcpConfig(), "utf8");
+      await writeFile(mcpConfigPath, sgMcpConfig(this.options.cwd), "utf8");
       const outputFilePath = this.options.outputSchema
         ? join(scratchDir, "assessment-output.json")
         : undefined;
@@ -159,7 +204,8 @@ class SwivalSession implements CodingAgentSession {
       });
 
       const answer = await this.resolveFinalAnswer(sessionId, promptResponse, outputFilePath);
-      this.finalResult = this.buildResult(sessionId, answer);
+      const reviewed = await this.reviewUntilAcceptable(sessionId, answer, outputFilePath);
+      this.finalResult = this.buildResult(sessionId, reviewed);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.push({ type: "error", message });
@@ -189,7 +235,7 @@ class SwivalSession implements CodingAgentSession {
     sessionId: string,
     promptResponse: JsonRpcMessage,
     outputFilePath: string | undefined,
-  ): Promise<{ error?: string; stopReason: string | undefined; text: string; structuredOutput: unknown }> {
+  ): Promise<ResolvedAnswer> {
     if (promptResponse.error) {
       return { error: promptResponse.error.message, stopReason: undefined, text: "", structuredOutput: undefined };
     }
@@ -216,6 +262,72 @@ class SwivalSession implements CodingAgentSession {
     }
 
     return { stopReason, text, structuredOutput };
+  }
+
+  /**
+   * Holds the final answer to the assessment schema before the session ends,
+   * by reviewing it and prompting the same live session to fix what fails.
+   *
+   * swival's own `--reviewer` flag does exactly this, but only around a
+   * command-line task: in `--acp` mode the flag parses and is then never
+   * invoked (verified against swival 1.0.41). Driving the same accept/retry
+   * loop from this side works because an ACP session accepts further prompts,
+   * which is how the missing-answer nudge above already recovers.
+   *
+   * This is the only correction mechanism available for swival:
+   * `runAssessment`'s repair loop resumes a session by id, and swival reports
+   * `agentCapabilities.loadSession: false`.
+   */
+  private async reviewUntilAcceptable(
+    sessionId: string,
+    answer: ResolvedAnswer,
+    outputFilePath: string | undefined,
+  ): Promise<ResolvedAnswer> {
+    if (!this.options.outputSchema || this.review.enabled === false) return answer;
+
+    const maxRounds = this.review.maxRounds ?? 3;
+    let current = answer;
+
+    for (let round = 1; round <= maxRounds; round++) {
+      // Nothing to review: a missing answer is already handled by the nudge,
+      // and reported as a failed assessment downstream.
+      if (current.structuredOutput === undefined || current.error) return current;
+
+      const verdict = await reviewAssessmentOutput(current.structuredOutput, {
+        repositoryPath: this.options.cwd,
+        requireVerifiedEvidence: this.review.requireEvidence !== false,
+      });
+      if (verdict.accepted) return current;
+
+      this.push({
+        type: "notice",
+        message: `answer rejected by review (round ${round}/${maxRounds}); asking for a correction`,
+      });
+
+      const response = await this.request("session/prompt", {
+        sessionId,
+        prompt: [{ type: "text", text: buildReviewFeedbackText(verdict.feedback, outputFilePath) }],
+      });
+      if (response.error) return current;
+
+      const text = this.latestAnswerText.join("");
+      let structuredOutput = outputFilePath ? await tryReadJsonFile(outputFilePath) : undefined;
+      structuredOutput ??= tryParseJson(text);
+
+      // A round that produced nothing parseable is a regression on an answer
+      // we already hold; keep the earlier one rather than trading down.
+      if (structuredOutput === undefined) return current;
+
+      current = {
+        stopReason: (response.result as { stopReason?: string } | undefined)?.stopReason,
+        text,
+        structuredOutput,
+      };
+    }
+
+    // Out of rounds. The remaining problems are reported by validation, and
+    // the report marks the findings they belong to.
+    return current;
   }
 
   private spawnChild(mcpConfigPath: string, writableScratchDir: string): void {
@@ -355,9 +467,13 @@ class SwivalSession implements CodingAgentSession {
   }
 }
 
-function sgMcpConfig(): string {
+function sgMcpConfig(repositoryPath: string): string {
   return JSON.stringify(
-    { mcpServers: { sg: { command: process.execPath, args: [SG_MCP_SERVER_PATH] } } },
+    {
+      mcpServers: {
+        sg: { command: process.execPath, args: [SG_MCP_SERVER_PATH, repositoryPath] },
+      },
+    },
     null,
     2,
   );
@@ -426,6 +542,25 @@ function buildPromptText(
 }
 
 /** Sent once, only if neither the output file nor the chat message parsed as JSON. */
+/**
+ * Feedback turn for an answer that failed review. Restates where the
+ * corrected document goes, because by this point the model is several turns
+ * past the original instruction about the output file.
+ */
+function buildReviewFeedbackText(feedback: string, outputFilePath: string | undefined): string {
+  const destination = outputFilePath
+    ? `Write the corrected assessment to ${outputFilePath}, replacing what is there now, then confirm you have done so.`
+    : "Respond with the corrected assessment as a single JSON object in this chat message.";
+
+  return [
+    "Your assessment was reviewed and cannot be accepted yet.",
+    "",
+    feedback,
+    "",
+    destination,
+  ].join("\n");
+}
+
 function buildNudgeText(): string {
   return (
     "Your previous turn ended without a usable final answer: the output file was missing, " +

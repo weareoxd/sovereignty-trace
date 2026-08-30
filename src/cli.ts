@@ -8,6 +8,7 @@ import { Command } from "commander";
 import type { CodingAgent, CodingAgentEvent } from "./agents/agent.js";
 import { ClaudeCodeAgent } from "./agents/claude-code.js";
 import { SwivalAgent } from "./agents/swival.js";
+import { unverifiedEvidence } from "./assessment/validation.js";
 import { renderMarkdownReport } from "./report.js";
 import { renderHtmlReport } from "./report-html.js";
 import { runAssessment } from "./run-assessment.js";
@@ -33,6 +34,11 @@ program
   .option(
     "-t, --max-tool-calls <n>",
     "cancel the session if it exceeds this many tool calls (safety valve for a stuck session; no cap by default)",
+    (value) => parseInt(value, 10),
+  )
+  .option(
+    "--max-repair-rounds <n>",
+    "how many times to hand unverifiable evidence citations back to the agent to correct (default 2; 0 disables)",
     (value) => parseInt(value, 10),
   )
   .option("-o, --out <file>", "write the Markdown report to this file instead of stdout")
@@ -72,6 +78,7 @@ program
       model: opts.model,
       resumeSessionId: opts.resume,
       maxToolCalls: opts.maxToolCalls,
+      maxRepairRounds: opts.maxRepairRounds,
       signal: controller.signal,
       onEvent: (event) => {
         if (opts.transcript) transcript.push(event);
@@ -129,7 +136,15 @@ program
     }
 
     if (!validation.valid) {
-      console.error(`\nValidation found ${validation.errors.length} issue(s); see the report above.`);
+      const unverified = unverifiedEvidence(validation);
+      const parts: string[] = [];
+      if (unverified.length > 0) {
+        parts.push(
+          `${unverified.length} unverified evidence citation(s) across ${validation.taintedFindings.length} finding(s)`,
+        );
+      }
+      if (validation.errors.length > 0) parts.push(`${validation.errors.length} validation error(s)`);
+      console.error(`\nValidation found ${parts.join(" and ")}; see the report above.`);
       process.exitCode = 1;
     }
   });
@@ -154,6 +169,9 @@ function printProgress(event: CodingAgentEvent): void {
       break;
     case "tool_use":
       console.error(`  ${event.toolName} ${summarizeToolInput(event.input)}`);
+      break;
+    case "notice":
+      console.error(`  ${event.message}`);
       break;
     case "error":
       console.error(`  error: ${event.message}`);

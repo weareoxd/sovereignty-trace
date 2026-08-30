@@ -39,6 +39,12 @@ export interface CodingAgentSessionOptions {
 export type CodingAgentEvent =
   | { type: "session_started"; sessionId: string }
   | { type: "text"; text: string }
+  /**
+   * Progress from the adapter itself rather than the model, e.g. an answer
+   * being sent back for correction. Distinct from `text`, which is the
+   * model's own output and accumulates into the final answer.
+   */
+  | { type: "notice"; message: string }
   | { type: "tool_use"; toolName: string; input: unknown; toolUseId: string }
   | { type: "tool_result"; toolUseId: string; isError: boolean; output: unknown }
   | { type: "error"; message: string }

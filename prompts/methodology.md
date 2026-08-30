@@ -121,6 +121,31 @@ you cannot point to in the repository. If something is likely but
 unconfirmed (e.g. a configurable region that could be set to a non-Canadian
 value), say so in the finding's notes rather than asserting it as fact.
 
+### Evidence is cited, not remembered
+
+The same rule that governs provider and policy knowledge governs repository
+evidence: retrieve it, don't recall it. By the time you write your final
+answer you will have read many files, and a path reconstructed from memory at
+that point is frequently wrong in a way that looks entirely plausible (the
+right filename under the wrong directory, or the directory of some other file
+you also read).
+
+So, for each piece of evidence you intend to cite:
+
+1. Call `sg_cite_evidence` with the file and line range.
+2. Copy its returned `file`, `lines`, `snippet`, and `evidenceId` into the
+   evidence entry verbatim. Do not retype the path, reformat the snippet, or
+   adjust the line numbers.
+3. If it returns not-found, do not cite that path. Find the file you actually
+   read and call the tool again. A suggested path in the error is a hint to
+   check, not an answer to use.
+
+`snippet` must be text the tool returned, not a paraphrase or a
+reconstruction of what the code probably says. Evidence that cannot be
+verified against the repository is reported as unverified in the assessment,
+and a finding whose only evidence fails verification is worth less than no
+finding at all.
+
 When you cite a provider in a finding, record the SG provider record id you
 retrieved (or mark it unavailable if none exists) — don't just name the
 vendor in prose. Never substitute a different provider's id (e.g. `aws`)

@@ -17,6 +17,12 @@ export const EvidenceSchema = z.object({
   snippet: z
     .string()
     .describe("Short excerpt (a few lines) substantiating the finding."),
+  evidenceId: z
+    .string()
+    .optional()
+    .describe(
+      "The `evidenceId` returned by sg_cite_evidence for this exact file and line range, copied verbatim. Include it whenever the citation came from that tool: it is what proves the quoted text was read from the repository rather than recalled.",
+    ),
   note: z.string().optional().describe("Why this evidence supports the finding."),
 });
 export type Evidence = z.infer<typeof EvidenceSchema>;

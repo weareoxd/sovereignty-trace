@@ -19,10 +19,11 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "postbuild": "chmod +x dist/cli.js dist/agents/sg-mcp-server.js",
     "dev": "tsx src/cli.ts",
     "assess": "tsx src/cli.ts assess",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

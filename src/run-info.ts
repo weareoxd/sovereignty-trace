@@ -21,5 +21,12 @@ export interface RunInfo {
   /** Resolved model identifier, when the runtime reports one. */
   model?: string;
   sessionId: string;
+  /** Usage totalled across the initial session and any evidence repair rounds. */
   usage?: CodingAgentUsage;
+  /**
+   * How many times unverifiable evidence citations were handed back to the
+   * agent for correction. Repeatedly non-zero for a given repository means
+   * the citations are going wrong systematically, not by chance.
+   */
+  repairRounds: number;
 }

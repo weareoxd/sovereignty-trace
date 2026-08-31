@@ -1,5 +1,4 @@
-import { SovereigntyAssessmentSchema } from "./schema.js";
-import { unverifiedEvidence, validateAssessment } from "./validation.js";
+import { buildNarrowedDraftSchema } from "./schema.js";
 
 /**
  * Verdict for one review round, shaped around swival's `--reviewer` contract:
@@ -13,82 +12,46 @@ export interface ReviewVerdict {
   feedback: string;
 }
 
-export interface ReviewOptions {
-  repositoryPath: string;
-  /** Repository-relative file listing, for nearest-path suggestions. */
-  files?: string[];
-  /** Reject findings whose citations don't verify, not just malformed documents. */
-  requireVerifiedEvidence?: boolean;
-}
-
 const ACCEPTED: ReviewVerdict = { accepted: true, feedback: "" };
 
 /**
- * Reviews one candidate assessment document the way `validateAssessment`
- * would, but while the agent can still fix it.
+ * Checks a candidate answer while the agent can still fix it.
  *
  * This is the constraint that runtimes without schema-enforced output
- * otherwise lack. Rather than accepting whatever an agent produces and
- * repairing or tolerating it afterwards, the same schema and evidence rules
- * are applied as an accept/retry gate inside the agent's own loop, so a
- * malformed or unsupported answer is corrected at the point it is written.
+ * otherwise lack: rather than accepting whatever comes back and repairing it
+ * afterwards, the same schema is applied as an accept/retry gate inside the
+ * agent's own loop.
+ *
+ * It checks the shape and nothing else. Evidence used to be checked here too,
+ * because the agent wrote the snippets; it doesn't any more, so there is
+ * nothing to catch — a citation that doesn't resolve is dropped downstream in
+ * ./hydrate-evidence.ts without another round trip.
+ *
+ * The one check worth having in-loop is the provider id, because the schema
+ * narrows it to the records that exist. An invented id gets corrected here,
+ * with the list still in front of the agent.
  */
-export async function reviewAssessmentOutput(
-  raw: unknown,
-  options: ReviewOptions,
-): Promise<ReviewVerdict> {
-  const parsed = SovereigntyAssessmentSchema.safeParse(raw);
+export async function reviewAssessmentOutput(raw: unknown): Promise<ReviewVerdict> {
+  const schema = await buildNarrowedDraftSchema();
+  const parsed = schema.safeParse(raw);
+  if (parsed.success) return ACCEPTED;
 
-  if (!parsed.success) {
-    const problems = parsed.error.issues.map((issue) => {
-      const path = issue.path.join(".") || "(root)";
-      return `- \`${path}\`: ${issue.message}`;
-    });
-
-    return {
-      accepted: false,
-      feedback: [
-        "Your assessment does not conform to the required JSON schema. Fix these and answer again:",
-        "",
-        ...problems,
-        "",
-        "Notes on the two mistakes that cause this most often:",
-        "- Omit an optional field entirely when it does not apply. Do not set it to null.",
-        "- Every value must have the type the schema states. Do not substitute null or an empty object for a missing string.",
-        "",
-        "Return the complete corrected assessment, not just the changed parts.",
-      ].join("\n"),
-    };
-  }
-
-  if (!options.requireVerifiedEvidence) return ACCEPTED;
-
-  const validation = await validateAssessment(parsed.data, {
-    repositoryPath: options.repositoryPath,
-    files: options.files,
+  const problems = parsed.error.issues.map((issue) => {
+    const path = issue.path.join(".") || "(root)";
+    return `- \`${path}\`: ${issue.message}`;
   });
-
-  const problems = [
-    ...unverifiedEvidence(validation).map((check) => {
-      const suggestion = check.suggestion
-        ? ` The closest matching file is \`${check.suggestion}\` (open it to confirm before citing it).`
-        : "";
-      return `- \`${check.path}\` cites \`${check.file}\`: ${check.message ?? check.verdict}${suggestion}`;
-    }),
-    ...validation.errors.map((error) => `- \`${error.path || "(root)"}\`: ${error.message}`),
-  ];
-
-  if (problems.length === 0) return ACCEPTED;
 
   return {
     accepted: false,
     feedback: [
-      "Your assessment cites evidence or knowledge records that could not be verified. Fix these and answer again:",
+      "Your assessment does not conform to the required JSON schema. Fix these and answer again:",
       "",
       ...problems,
       "",
-      "For each one: re-read the file with sg_cite_evidence and copy back exactly what it returns, or remove the citation.",
-      "Remove any finding left with no evidence. Do not invent replacement evidence.",
+      "Notes on the mistakes that cause this most often:",
+      "- Omit an optional field entirely when it does not apply. Do not set it to null.",
+      "- Every value must have the type the schema states. Do not substitute null or an empty object for a missing string.",
+      "- `providerId` and `ruleId` must be values from the lists in your instructions, copied exactly. Do not shorten or reformat an id.",
       "",
       "Return the complete corrected assessment, not just the changed parts.",
     ].join("\n"),

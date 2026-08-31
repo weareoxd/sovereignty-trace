@@ -1,11 +1,14 @@
 import type { Authority, CitableSection, PolicyDocument } from "./policy-schema.js";
 
 /**
- * Renders a validated policy document into the prose text sg_get_policy
- * returns to the coding agent. Mirrors ./provider-render.ts: the tool
- * contract doesn't change, but the same facts (verification status, citation,
- * checked date) now show up in the same place and the same words on every
- * record instead of being written freehand each time.
+ * Renders a validated policy document into the prose text the coding agent
+ * reads. Mirrors ./provider-render.ts: the same facts (verification status,
+ * citation, checked date) show up in the same place and the same words on
+ * every record instead of being written freehand each time.
+ *
+ * Unlike the provider equivalent, this text does reach the agent — the whole
+ * set is pasted into the assessment's opening instructions (see
+ * ../assessment/methodology.ts), because judging alignment means reading it.
  */
 export function renderPolicy(doc: PolicyDocument): string {
   const lines: string[] = [];

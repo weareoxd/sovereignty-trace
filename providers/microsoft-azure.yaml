@@ -40,6 +40,7 @@ access_paths:
       defaults to Canada just because a team is Canadian.
 
 what_to_look_for:
+  - "Azure Communication Services (@azure/communication-sms, @azure/communication-email, ACS_CONNECTION_STRING): the resource is region-scoped like any other, but SMS and telephony delivery run through carrier networks and ACS number availability is limited to a few countries, so the delivery path is not confined to the resource's region. The connection string names the resource endpoint — read the region from there rather than assuming the subscription's default."
   - "Azure AI services: Azure OpenAI Service and Azure AI (Cognitive) Services deployments are region-scoped — look for the resource's region the same way as any other Azure resource. Azure OpenAI is a distinct offering from OpenAI's own API (see the openai provider record's azure_openai access path); a resource pinned to a Canadian region processes data differently than a direct call to OpenAI's API."
   - "Global services: Azure Front Door, Azure CDN, and Microsoft Entra ID (Azure AD) have global/multi-region components — treat these as \"not confined to one region\" rather than assigning them a jurisdiction."
 

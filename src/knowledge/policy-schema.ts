@@ -3,9 +3,12 @@ import { z } from "zod";
 /**
  * Structured shape for a policy document (policies/*.yaml). Mirrors
  * ./provider-schema.ts: this is the source of truth an entry's author fills
- * in, src/knowledge/policy-render.ts turns a validated entry into the prose
- * text sg_get_policy actually returns, and the tool contract doesn't change
- * — still one text blob per policy record.
+ * in, and src/knowledge/policy-render.ts turns a validated entry into the
+ * prose the coding agent reads — one text blob per policy record.
+ *
+ * `citable_sections` is also the list of policy points every assessment must
+ * answer (see ./api.ts `listPolicyRules`), so adding one here adds a question
+ * to every future assessment.
  *
  * A policy document is not evaluated by any code — unlike a rule engine, SG
  * gives this text to the coding agent as grounding and lets the agent judge

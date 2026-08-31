@@ -1,10 +1,4 @@
-import {
-  indexEvidenceChecks,
-  indexTaintedFindings,
-  unverifiedEvidence,
-  type EvidenceCheck,
-  type ValidationResult,
-} from "./assessment/validation.js";
+import type { ValidationResult } from "./assessment/validation.js";
 import type { SovereigntyAssessment } from "./assessment/schema.js";
 import type { RunInfo } from "./run-info.js";
 
@@ -30,58 +24,49 @@ export function formatDuration(durationMs: number): string {
 }
 
 /**
- * One-line plain-text account of a citation that failed verification,
- * including the nearest matching repository file when one was found. Shared
- * with the HTML renderer so both reports say the same thing.
- */
-export function describeEvidenceProblem(check: EvidenceCheck | undefined): string | undefined {
-  if (!check || check.verdict === "verified") return undefined;
-  return `${check.message ?? check.verdict}${suggestionText(check)}`;
-}
-
-function suggestionText(check: EvidenceCheck): string {
-  return check.suggestion ? ` Did you mean \`${check.suggestion}\`?` : "";
-}
-
-/**
- * Plain-text summary for the Validation section. Unverified citations are
- * reported as a count against the findings that made them, rather than as a
- * blanket judgement on the assessment, so one bad path doesn't read as "none
- * of this is trustworthy".
+ * Plain-text summary for the Coverage section, shared with the HTML renderer
+ * so both reports say the same thing.
+ *
+ * What used to go here was a verdict on whether the agent's citations could be
+ * trusted. Citations are read out of the repository now, so the question is no
+ * longer whether the report is trustworthy but whether it is complete: what was
+ * dropped, and what was never answered.
  */
 export function summarizeValidation(validation: ValidationResult): string {
+  if (validation.errors.length > 0) {
+    return "The agent's answer did not conform to the assessment schema, so no assessment was produced.";
+  }
   if (validation.valid) {
-    return "All cited evidence, provider records, and policy records resolved successfully.";
+    return "Every component category and policy point was answered, and every citation resolved against the repository.";
   }
 
   const parts: string[] = [];
-  const unverified = unverifiedEvidence(validation);
-
-  if (unverified.length > 0) {
+  if (validation.droppedEvidence.length > 0) {
     parts.push(
-      `${unverified.length} of ${validation.evidenceChecks.length} evidence citations could not be ` +
-        `verified, across ${validation.taintedFindings.length} finding(s). Those findings are marked ` +
-        "above. The rest of the report is unaffected.",
+      `${validation.droppedEvidence.length} citation(s) did not resolve against the repository and were dropped.`,
     );
   }
-  if (validation.errors.length > 0) {
+  if (validation.droppedFindings.length > 0) {
     parts.push(
-      "This assessment failed structural or knowledge-record validation. Treat it as unverified.",
+      `${validation.droppedFindings.length} finding(s) were removed because every citation they had was dropped.`,
     );
+  }
+  const coverage =
+    validation.warnings.length - validation.droppedEvidence.length - validation.droppedFindings.length;
+  if (coverage > 0) {
+    parts.push(`${coverage} category or policy point(s) went unanswered and are recorded as unknown.`);
   }
 
   return parts.join(" ");
 }
 
-/** Renders a sovereignty assessment (and its validation result) as a Markdown report. */
+/** Renders a sovereignty assessment as a Markdown report. */
 export function renderMarkdownReport(
   assessment: SovereigntyAssessment,
   validation: ValidationResult,
   runInfo: RunInfo,
 ): string {
   const lines: string[] = [];
-  const checksByPath = indexEvidenceChecks(validation.evidenceChecks);
-  const taintByPath = indexTaintedFindings(validation.taintedFindings);
 
   lines.push(`# Sovereignty Assessment: ${runInfo.repositoryName}`);
   lines.push("");
@@ -96,7 +81,7 @@ export function renderMarkdownReport(
   lines.push(`- Duration: ${formatDuration(runInfo.durationMs)}`);
   lines.push(`- Agent: ${runInfo.agentName}${runInfo.model ? ` (${runInfo.model})` : ""}`);
   if (runInfo.repairRounds > 0) {
-    lines.push(`- Evidence repair rounds: ${runInfo.repairRounds}`);
+    lines.push(`- Schema retries: ${runInfo.repairRounds}`);
   }
   if (runInfo.usage?.totalCostUsd !== undefined) {
     lines.push(`- Estimated cost: $${runInfo.usage.totalCostUsd.toFixed(4)}`);
@@ -110,38 +95,27 @@ export function renderMarkdownReport(
 
   lines.push("## Findings by component");
   lines.push("");
-  for (const [componentIndex, component] of assessment.components.entries()) {
+  for (const component of assessment.components) {
     lines.push(`### ${component.category}`);
     lines.push("");
     lines.push(component.summary);
     lines.push("");
-    for (const [findingIndex, finding] of component.findings.entries()) {
-      const findingPath = `components[${componentIndex}].findings[${findingIndex}]`;
-      const taint = taintByPath.get(findingPath);
-      const taintMark = taint && taint.verified === 0 ? " **[EVIDENCE UNVERIFIED]**" : "";
-      lines.push(`- **${finding.name}** (risk: ${finding.riskLevel})${taintMark}`);
+    for (const finding of component.findings) {
+      lines.push(`- **${finding.name}** (risk: ${finding.riskLevel})`);
       lines.push(`  ${finding.description}`);
-      if (finding.provider) lines.push(`  - Provider: ${finding.provider}`);
-      if (finding.providerReference) {
-        const ref = finding.providerReference;
-        lines.push(
-          `  - SG provider record: \`${ref.id}\`${ref.available ? "" : " (no SG record found for this provider)"}`,
-        );
-      }
-      if (finding.destinationJurisdiction) {
-        lines.push(`  - Destination jurisdiction: ${finding.destinationJurisdiction}`);
-      }
+      lines.push(`  - Provider: ${finding.provider} (\`${finding.providerReference.id}\`)`);
+      lines.push(`  - Classification: ${finding.classification}`);
+      lines.push(`  - Path: ${finding.activePath ? "default or currently active" : "alternate, not the active path"}`);
+      lines.push(`  - Destination jurisdiction: ${finding.destinationJurisdiction}`);
       if (finding.crossesBorder !== undefined) {
         lines.push(`  - Crosses Canadian border: ${finding.crossesBorder ? "yes" : "no"}`);
       }
       if (finding.dataCategories.length > 0) {
         lines.push(`  - Data categories: ${finding.dataCategories.join(", ")}`);
       }
-      for (const [evidenceIndex, evidence] of finding.evidence.entries()) {
+      for (const evidence of finding.evidence) {
         const loc = evidence.lines ? `${evidence.file}:${evidence.lines}` : evidence.file;
         lines.push(`  - Evidence: \`${loc}\`${evidence.note ? ` — ${evidence.note}` : ""}`);
-        const flag = describeEvidenceProblem(checksByPath.get(`${findingPath}.evidence[${evidenceIndex}]`));
-        if (flag) lines.push(`    - **Unverified:** ${flag}`);
       }
       if (finding.notes) lines.push(`  - Notes: ${finding.notes}`);
     }
@@ -151,20 +125,10 @@ export function renderMarkdownReport(
   if (assessment.policyAlignment.length > 0) {
     lines.push("## Policy alignment");
     lines.push("");
-    for (const [policyIndex, alignment] of assessment.policyAlignment.entries()) {
+    for (const alignment of assessment.policyAlignment) {
       const ref = alignment.policyReference;
-      const refLabel = ref.section ? `${ref.id}#${ref.section}` : ref.id;
-      lines.push(`- **${refLabel}** — ${alignment.status}`);
+      lines.push(`- **${ref.title}** (\`${ref.id}#${ref.section}\`) — ${alignment.status}`);
       lines.push(`  ${alignment.explanation}`);
-      if (ref.sourceId) lines.push(`  - Source: \`${ref.sourceId}\``);
-      for (const [evidenceIndex, evidence] of alignment.evidence.entries()) {
-        const loc = evidence.lines ? `${evidence.file}:${evidence.lines}` : evidence.file;
-        lines.push(`  - Evidence: \`${loc}\``);
-        const flag = describeEvidenceProblem(
-          checksByPath.get(`policyAlignment[${policyIndex}].evidence[${evidenceIndex}]`),
-        );
-        if (flag) lines.push(`    - **Unverified:** ${flag}`);
-      }
     }
     lines.push("");
   }
@@ -185,18 +149,10 @@ export function renderMarkdownReport(
     lines.push("");
   }
 
-  lines.push("## Validation");
+  lines.push("## Coverage");
   lines.push("");
   lines.push(summarizeValidation(validation));
 
-  const unverified = unverifiedEvidence(validation);
-  if (unverified.length > 0) {
-    lines.push("");
-    lines.push("Unverified evidence:");
-    for (const check of unverified) {
-      lines.push(`- \`${check.path}\`: ${describeEvidenceProblem(check)}`);
-    }
-  }
   if (validation.errors.length > 0) {
     lines.push("");
     lines.push("Errors:");
@@ -206,7 +162,7 @@ export function renderMarkdownReport(
   }
   if (validation.warnings.length > 0) {
     lines.push("");
-    lines.push("Warnings:");
+    lines.push("Details:");
     for (const warning of validation.warnings) {
       lines.push(`- \`${warning.path}\`: ${warning.message}`);
     }

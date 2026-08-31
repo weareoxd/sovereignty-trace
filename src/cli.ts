@@ -8,7 +8,6 @@ import { Command } from "commander";
 import type { CodingAgent, CodingAgentEvent } from "./agents/agent.js";
 import { ClaudeCodeAgent } from "./agents/claude-code.js";
 import { SwivalAgent } from "./agents/swival.js";
-import { unverifiedEvidence } from "./assessment/validation.js";
 import { renderMarkdownReport } from "./report.js";
 import { renderHtmlReport } from "./report-html.js";
 import { runAssessment } from "./run-assessment.js";
@@ -37,8 +36,8 @@ program
     (value) => parseInt(value, 10),
   )
   .option(
-    "--max-repair-rounds <n>",
-    "how many times to hand unverifiable evidence citations back to the agent to correct (default 2; 0 disables)",
+    "--max-retries <n>",
+    "how many times to ask again when the agent's answer doesn't match the schema (default 1; 0 disables)",
     (value) => parseInt(value, 10),
   )
   .option("-o, --out <file>", "write the Markdown report to this file instead of stdout")
@@ -78,7 +77,7 @@ program
       model: opts.model,
       resumeSessionId: opts.resume,
       maxToolCalls: opts.maxToolCalls,
-      maxRepairRounds: opts.maxRepairRounds,
+      maxRetries: opts.maxRetries,
       signal: controller.signal,
       onEvent: (event) => {
         if (opts.transcript) transcript.push(event);
@@ -136,15 +135,17 @@ program
     }
 
     if (!validation.valid) {
-      const unverified = unverifiedEvidence(validation);
       const parts: string[] = [];
-      if (unverified.length > 0) {
-        parts.push(
-          `${unverified.length} unverified evidence citation(s) across ${validation.taintedFindings.length} finding(s)`,
-        );
+      if (validation.droppedEvidence.length > 0) {
+        parts.push(`${validation.droppedEvidence.length} citation(s) dropped`);
       }
-      if (validation.errors.length > 0) parts.push(`${validation.errors.length} validation error(s)`);
-      console.error(`\nValidation found ${parts.join(" and ")}; see the report above.`);
+      if (validation.droppedFindings.length > 0) {
+        parts.push(`${validation.droppedFindings.length} finding(s) removed for lack of evidence`);
+      }
+      const coverage = validation.warnings.length - validation.droppedEvidence.length - validation.droppedFindings.length;
+      if (coverage > 0) parts.push(`${coverage} coverage gap(s)`);
+
+      console.error(`\nThe assessment is incomplete: ${parts.join(", ")}. See the report above.`);
       process.exitCode = 1;
     }
   });

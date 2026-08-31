@@ -1,7 +1,12 @@
 export {
+  AssessmentDraftSchema,
   ComponentAssessmentSchema,
   ComponentCategorySchema,
+  COMPONENT_CATEGORIES,
+  DataClassificationSchema,
   DataMovementFindingSchema,
+  DraftEvidenceSchema,
+  DraftFindingSchema,
   EvidenceSchema,
   PolicyAlignmentSchema,
   PolicyAlignmentStatusSchema,
@@ -9,12 +14,17 @@ export {
   ProviderReferenceSchema,
   RiskLevelSchema,
   SovereigntyAssessmentSchema,
-  sovereigntyAssessmentJsonSchema,
+  assessmentDraftJsonSchema,
+  buildNarrowedDraftSchema,
 } from "./schema.js";
 export type {
+  AssessmentDraft,
   ComponentAssessment,
   ComponentCategory,
+  DataClassification,
   DataMovementFinding,
+  DraftEvidence,
+  DraftFinding,
   Evidence,
   PolicyAlignment,
   PolicyAlignmentStatus,
@@ -24,19 +34,24 @@ export type {
   SovereigntyAssessment,
 } from "./schema.js";
 export { buildAssessmentInstructions, type AssessmentInstructionsInput } from "./methodology.js";
+export { validateAssessment, type ValidationIssue, type ValidationResult } from "./validation.js";
+export { assembleAssessment, type AssemblyResult, type DroppedFinding } from "./assemble.js";
 export {
-  indexEvidenceChecks,
-  indexTaintedFindings,
-  unverifiedEvidence,
-  validateAssessment,
-  type EvidenceCheck,
-  type EvidenceVerdict,
-  type FindingTaint,
-  type ValidationIssue,
-  type ValidationResult,
-} from "./validation.js";
+  hydrateEvidence,
+  parseLineRange,
+  type DroppedEvidence,
+  type EvidenceDropReason,
+  type HydrationResult,
+} from "./hydrate-evidence.js";
+export {
+  resolveResidency,
+  NO_MATCHING_RECORD,
+  SELF_HOSTED,
+  type ResidencyFacts,
+  type ResidencyStatus,
+} from "./residency.js";
+export { rollUpRisk, scoreFinding, type RiskInputs } from "./risk.js";
 export { suggestNearestPath } from "./nearest-path.js";
-export { buildEvidenceRepairPrompt } from "./repair.js";
 export {
   formatLineRange,
   mintEvidenceHandle,

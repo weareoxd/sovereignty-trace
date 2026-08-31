@@ -7,7 +7,6 @@ import type {
   CodingAgentSessionOptions,
   CodingAgentUsage,
 } from "./agent.js";
-import { createSgServer } from "./sg-tools.js";
 
 /**
  * CodingAgent adapter for the Claude Code SDK (`@anthropic-ai/claude-agent-sdk`).
@@ -67,13 +66,6 @@ class ClaudeCodeSession implements CodingAgentSession {
         // treat repositories being assessed as at least semi-trusted input
         // (run untrusted repositories in a container or read-only checkout).
         tools: ["Read", "Grep", "Glob", "Bash"],
-        // On-demand Sovereignty Graph knowledge, exposed as
-        // sg_search_providers / sg_get_provider / sg_search_policies /
-        // sg_get_policy / sg_get_policy_source, plus sg_cite_evidence for
-        // repository citations. Not part of the opening instructions — the
-        // agent calls these only once it identifies a provider or policy
-        // question worth grounding, or has evidence to cite.
-        mcpServers: { sg: createSgServer({ repositoryPath: options.cwd }) },
         // There is no human in the loop for a headless assessment run, so
         // permission prompts must be pre-resolved rather than hang.
         permissionMode: "bypassPermissions",

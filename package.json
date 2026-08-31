@@ -20,7 +20,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "postbuild": "chmod +x dist/cli.js dist/agents/sg-mcp-server.js",
+    "postbuild": "chmod +x dist/cli.js",
     "dev": "tsx src/cli.ts",
     "assess": "tsx src/cli.ts assess",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",

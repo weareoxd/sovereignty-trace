@@ -37,6 +37,8 @@ access_paths:
       pins a Canadian region.
 
 what_to_look_for:
+  - "A custom endpoint means this is not AWS. An S3 (or other) SDK client constructed with an explicit `endpoint`/`endpoint_url` pointing somewhere other than *.amazonaws.com is talking to an S3-compatible service — MinIO, ObjectScale, Ceph, Cloudflare R2, a government object store — not to Amazon. `forcePathStyle: true` is a further tell. Match the record for the actual destination host; the AWS SDK package name is not evidence of an AWS destination."
+  - "A region string on a non-AWS endpoint is not an AWS region. S3-compatible services require the client to send some region value, and ca-central-1 is a common filler. Only treat a region as evidence once the endpoint is confirmed to be AWS."
   - "Global/edge services: CloudFront, Route 53, and some parts of IAM and Cognito operate at a global or edge level rather than a single region — treat these as \"not confined to one region\" rather than assigning them a jurisdiction."
   - Managed AI services — Bedrock, Comprehend, Rekognition, Textract, and similar are region-scoped like other AWS services; the same region-configuration evidence applies.
   - "S3 bucket region: buckets are created in a specific region at creation time; look for the region in bucket creation code/IaC, not just the bucket name."

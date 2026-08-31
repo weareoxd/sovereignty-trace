@@ -7,18 +7,13 @@ import type {
   CodingAgentUsage,
 } from "./agents/agent.js";
 import { buildAssessmentInstructions } from "./assessment/methodology.js";
-import { buildEvidenceRepairPrompt } from "./assessment/repair.js";
 import { gatherRepositoryInfo } from "./assessment/repository-info.js";
-import { sovereigntyAssessmentJsonSchema } from "./assessment/schema.js";
-import {
-  unverifiedEvidence,
-  validateAssessment,
-  type ValidationResult,
-} from "./assessment/validation.js";
+import { assessmentDraftJsonSchema } from "./assessment/schema.js";
+import { validateAssessment, type ValidationResult } from "./assessment/validation.js";
 import type { RunInfo } from "./run-info.js";
 
-/** Repair rounds attempted when evidence fails verification, unless overridden. */
-const DEFAULT_MAX_REPAIR_ROUNDS = 2;
+/** Retries attempted when the agent's answer doesn't parse, unless overridden. */
+const DEFAULT_MAX_RETRIES = 1;
 
 export interface RunAssessmentOptions {
   agent: CodingAgent;
@@ -36,11 +31,15 @@ export interface RunAssessmentOptions {
    */
   maxToolCalls?: number;
   /**
-   * How many times to hand failed evidence citations back to the agent for
-   * correction. Defaults to {@link DEFAULT_MAX_REPAIR_ROUNDS}; 0 disables
-   * repair and reports the first result as-is.
+   * How many times to ask again when the agent's answer doesn't conform to the
+   * schema. Defaults to {@link DEFAULT_MAX_RETRIES}; 0 reports the first result
+   * as-is.
+   *
+   * This no longer covers evidence. Citations are resolved against the
+   * repository in ./assessment/hydrate-evidence.ts, so a bad one is dropped
+   * there rather than sent back for another round.
    */
-  maxRepairRounds?: number;
+  maxRetries?: number;
   /** Called for every normalized agent event, e.g. to print progress. */
   onEvent?: (event: CodingAgentEvent) => void;
 }
@@ -52,14 +51,13 @@ export interface RunAssessmentOutcome {
 }
 
 /**
- * Runs one end-to-end assessment: builds the methodology instructions,
- * starts a CodingAgent session against the repository, drives it to
- * completion, validates the structured output it returns, and hands any
- * unverifiable evidence citation back to the same session to correct.
+ * Runs one end-to-end assessment.
  *
- * The repair rounds exist because the agent's citations are written from
- * memory when it serializes its answer, which is where they go wrong: it
- * still has the session context needed to fix a path it actually read.
+ * The agent's session produces observations. Everything derived from them —
+ * the quoted evidence, the provider residency, the risk levels, the policy
+ * coverage — is computed here, in ./assessment/validation.ts and the modules
+ * it calls. Given the same draft, this half of the pipeline produces the same
+ * document every time.
  *
  * Repository identity, timing, and runtime/model are computed here rather
  * than asked of the coding agent, so they're identical across agent
@@ -82,7 +80,7 @@ export async function runAssessment(options: RunAssessmentOptions): Promise<RunA
 
   const sessionDefaults = {
     cwd: repositoryPath,
-    outputSchema: sovereigntyAssessmentJsonSchema(),
+    outputSchema: await assessmentDraftJsonSchema(),
     model: options.model,
     signal: options.signal,
   };
@@ -97,36 +95,33 @@ export async function runAssessment(options: RunAssessmentOptions): Promise<RunA
 
   let validation = await validateAgainstRepository(agentResult, repositoryPath, repositoryInfo.files);
 
-  const maxRepairRounds = options.maxRepairRounds ?? DEFAULT_MAX_REPAIR_ROUNDS;
+  const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
   let repairRounds = 0;
 
-  while (repairRounds < maxRepairRounds && !options.signal?.aborted) {
-    const failures = unverifiedEvidence(validation);
-    if (failures.length === 0 || !agentResult.sessionId) break;
+  // Only a draft that didn't parse is worth asking about again. Dropped
+  // citations and unanswered categories are recorded and reported; sending the
+  // whole document back for those re-rolled every other field along with them.
+  while (repairRounds < maxRetries && !validation.assessment && !options.signal?.aborted) {
+    if (!agentResult.sessionId) break;
 
     repairRounds++;
-    const repaired = await driveSession(options, {
+    const retried = await driveSession(options, {
       ...sessionDefaults,
-      instructions: await buildEvidenceRepairPrompt(failures),
+      instructions: buildSchemaRetryPrompt(validation.errors),
       resumeSessionId: agentResult.sessionId,
     });
-    usageTotals.push(repaired.usage ?? {});
+    usageTotals.push(retried.usage ?? {});
 
-    // A failed repair round leaves the previous assessment standing: it is
-    // incomplete, not worthless, and discarding it would lose every finding
-    // that did verify.
-    if (repaired.isError || repaired.structuredOutput === undefined) break;
+    if (retried.isError || retried.structuredOutput === undefined) break;
 
     const revalidated = await validateAgainstRepository(
-      repaired,
+      retried,
       repositoryPath,
       repositoryInfo.files,
     );
-    // Only accept the repair if it parsed; a schema-invalid retry is a
-    // regression on a result we already have.
     if (!revalidated.assessment) break;
 
-    agentResult = repaired;
+    agentResult = retried;
     validation = revalidated;
   }
 
@@ -166,12 +161,27 @@ async function validateAgainstRepository(
         },
       ],
       warnings: [],
-      evidenceChecks: [],
-      taintedFindings: [],
+      droppedEvidence: [],
+      droppedFindings: [],
     };
   }
 
   return validateAssessment(agentResult.structuredOutput, { repositoryPath, files });
+}
+
+/** Asks for the answer again, naming what didn't fit the schema. */
+function buildSchemaRetryPrompt(errors: { path: string; message: string }[]): string {
+  const items = errors.slice(0, 20).map((error) => `- \`${error.path || "(root)"}\`: ${error.message}`);
+  return [
+    "Your answer did not conform to the output schema for this session, so it could not be used.",
+    "",
+    "What didn't fit:",
+    "",
+    ...items,
+    "",
+    "Return the complete assessment again, conforming to the same schema. Keep the findings you",
+    "already made; this pass is only about the shape of the answer.",
+  ].join("\n");
 }
 
 /** Runs one session to completion, enforcing the per-session tool-call cap. */

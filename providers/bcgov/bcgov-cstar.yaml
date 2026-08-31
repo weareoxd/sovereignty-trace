@@ -1,0 +1,75 @@
+id: bcgov-cstar
+name: BC Government CSTAR (Tenant Management System)
+status: UNVERIFIED
+description: >
+  BC Government tenant and access management service. Applications call it
+  to resolve a user's tenant membership, roles and group memberships, and to
+  look up group email addresses for distribution. Sometimes described as the
+  Tenant Management System or a common shared tenancy/RBAC service.
+
+access_paths:
+  - key: default
+    label: CSTAR
+    signatures:
+      domains:
+        - "cstar-dev.apps.gold.devops.gov.bc.ca"
+        - "cstar*.apps.gold.devops.gov.bc.ca"
+        - "cstar*.apps.silver.devops.gov.bc.ca"
+      env_vars: [CSTAR_API_URL, VITE_CSTAR_API_URL, VITE_CSTAR_TENANT_SETUP_URL]
+    data_residency:
+      customer_configurable: false
+      configured_region_derivable_from_repository: true
+      configured_region_reason: >
+        The configured CSTAR hostname settles this. The endpoints observed
+        in use are OpenShift routes on the BC Government Private Cloud Gold
+        cluster (*.apps.gold.devops.gov.bc.ca), which BC Government
+        documents as hosted in Canada. A CSTAR_API_URL pointed at any other
+        host has to be re-checked rather than assumed.
+      storage_regions:
+        status: known
+        values: [Canada]
+        reason: >
+          Derived from the deployment location rather than from a
+          CSTAR-specific residency statement: the service is reached over a
+          BC Government Private Cloud OpenShift route, and that platform is
+          documented as hosted in government data centres in Canada.
+        evidence:
+          - url: https://digital.gov.bc.ca/technology/cloud/private/intro/
+            checked: "2026-08-26"
+      processing_regions:
+        status: known
+        values: [Canada]
+        reason: >
+          Same derivation as storage_regions — the OpenShift cluster the
+          route resolves to is the processing location.
+        evidence:
+          - url: https://digital.gov.bc.ca/technology/cloud/private/intro/
+            checked: "2026-08-26"
+      support_access_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+    notes: >
+      Calls to CSTAR typically carry a user's SSO identifier and bearer
+      token, and responses can include group email addresses. That is
+      personal information moving between two government services, so a
+      finding should still describe what is sent even though the
+      destination stays in Canada.
+    related_providers: [bcgov-openshift, bcgov-sso]
+
+what_to_look_for:
+  - "CSTAR is a distinct service from BC Government SSO / Pathfinder SSO. SSO authenticates the user; CSTAR resolves what that user is allowed to do. A repository that uses both should report them as separate findings against separate records."
+
+notes: >
+  This entry's residency is inherited from the platform the service runs
+  on, not from published CSTAR documentation. If an assessment needs a
+  CSTAR-specific commitment (retention, subprocessors, support access), it
+  is not established here.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-31"

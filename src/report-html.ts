@@ -1,13 +1,6 @@
-import {
-  indexEvidenceChecks,
-  indexTaintedFindings,
-  unverifiedEvidence,
-  type EvidenceCheck,
-  type FindingTaint,
-  type ValidationResult,
-} from "./assessment/validation.js";
+import type { ValidationResult } from "./assessment/validation.js";
 import type { SovereigntyAssessment } from "./assessment/schema.js";
-import { describeEvidenceProblem, formatDuration, summarizeValidation } from "./report.js";
+import { formatDuration, summarizeValidation } from "./report.js";
 import type { RunInfo } from "./run-info.js";
 
 const RISK_LABEL: Record<string, string> = {
@@ -55,26 +48,28 @@ function policyStatusClass(status: string): string {
   return `policy-${status in POLICY_STATUS_LABEL ? status : "unknown"}`;
 }
 
+const CLASSIFICATION_LABEL: Record<string, string> = {
+  personal_information: "Personal information",
+  protected_b: "Protected B",
+  protected_c: "Protected C",
+  credentials_or_secrets: "Credentials or secrets",
+  operational: "Operational",
+  none_identified: "None identified",
+  unclassified: "Unclassified",
+};
+
 function renderEvidence(
   evidence: SovereigntyAssessment["components"][number]["findings"][number]["evidence"],
-  pathPrefix: string,
-  checksByPath: Map<string, EvidenceCheck>,
 ): string {
   if (evidence.length === 0) return "";
   const items = evidence
-    .map((e, index) => {
+    .map((e) => {
       const loc = e.lines ? `${e.file}:${e.lines}` : e.file;
       const note = e.note ? ` — ${escapeHtml(e.note)}` : "";
       const snippet = e.snippet
         ? `<pre class="snippet"><code>${escapeHtml(e.snippet)}</code></pre>`
         : "";
-      const problem = describeEvidenceProblem(checksByPath.get(`${pathPrefix}.evidence[${index}]`));
-      const flag = problem
-        ? `<p class="evidence-problem"><strong>Unverified:</strong> ${escapeHtml(problem)}</p>`
-        : "";
-      return `<li class="${problem ? "evidence-unverified" : ""}"><code>${escapeHtml(
-        loc,
-      )}</code>${note}${flag}${snippet}</li>`;
+      return `<li><code>${escapeHtml(loc)}</code>${note}${snippet}</li>`;
     })
     .join("");
   return `<ul class="evidence">${items}</ul>`;
@@ -82,35 +77,28 @@ function renderEvidence(
 
 function renderFinding(
   finding: SovereigntyAssessment["components"][number]["findings"][number],
-  path: string,
-  checksByPath: Map<string, EvidenceCheck>,
-  taint: FindingTaint | undefined,
 ): string {
   const parts: string[] = [];
-  parts.push(`<div class="finding${taint ? " tainted" : ""}">`);
+  parts.push(`<div class="finding">`);
   parts.push(
     `<div class="finding-header"><span class="finding-name">${escapeHtml(finding.name)}</span>` +
-      `<span class="badges">${
-        taint ? `<span class="badge badge-unverified">Unverified evidence</span>` : ""
-      }<span class="badge ${riskClass(finding.riskLevel)}">${
+      `<span class="badges"><span class="badge ${riskClass(finding.riskLevel)}">${
         RISK_LABEL[finding.riskLevel] ?? finding.riskLevel
       }</span></span></div>`,
   );
   parts.push(`<p class="finding-description">${escapeHtml(finding.description)}</p>`);
 
-  const meta: string[] = [];
-  if (finding.provider) meta.push(`<li><strong>Provider:</strong> ${escapeHtml(finding.provider)}</li>`);
-  if (finding.providerReference) {
-    const ref = finding.providerReference;
-    meta.push(
-      `<li><strong>SG provider record:</strong> <code>${escapeHtml(ref.id)}</code>${
-        ref.available ? "" : " (no SG record found for this provider)"
-      }</li>`,
-    );
-  }
-  if (finding.destinationJurisdiction) {
-    meta.push(`<li><strong>Destination jurisdiction:</strong> ${escapeHtml(finding.destinationJurisdiction)}</li>`);
-  }
+  const ref = finding.providerReference;
+  const meta: string[] = [
+    `<li><strong>Provider:</strong> ${escapeHtml(finding.provider)} <code>${escapeHtml(ref.id)}</code></li>`,
+    `<li><strong>Classification:</strong> ${escapeHtml(
+      CLASSIFICATION_LABEL[finding.classification] ?? finding.classification,
+    )}</li>`,
+    `<li><strong>Path:</strong> ${
+      finding.activePath ? "default or currently active" : "alternate, not the active path"
+    }</li>`,
+    `<li><strong>Destination jurisdiction:</strong> ${escapeHtml(finding.destinationJurisdiction)}</li>`,
+  ];
   if (finding.crossesBorder !== undefined) {
     meta.push(`<li><strong>Crosses Canadian border:</strong> ${finding.crossesBorder ? "yes" : "no"}</li>`);
   }
@@ -118,9 +106,9 @@ function renderFinding(
     meta.push(`<li><strong>Data categories:</strong> ${escapeHtml(finding.dataCategories.join(", "))}</li>`);
   }
   if (finding.notes) meta.push(`<li><strong>Notes:</strong> ${escapeHtml(finding.notes)}</li>`);
-  if (meta.length > 0) parts.push(`<ul class="finding-meta">${meta.join("")}</ul>`);
+  parts.push(`<ul class="finding-meta">${meta.join("")}</ul>`);
 
-  const evidenceHtml = renderEvidence(finding.evidence, path, checksByPath);
+  const evidenceHtml = renderEvidence(finding.evidence);
   if (evidenceHtml) parts.push(evidenceHtml);
 
   parts.push(`</div>`);
@@ -134,22 +122,19 @@ export function renderHtmlReport(
   runInfo: RunInfo,
 ): string {
   const title = `Sovereignty Assessment: ${runInfo.repositoryName}`;
-  const checksByPath = indexEvidenceChecks(validation.evidenceChecks);
-  const taintByPath = indexTaintedFindings(validation.taintedFindings);
 
+  // Every category and policy point appears, whether or not it had anything to
+  // report, so a reader can see what ground was covered. The empty ones are
+  // muted rather than hidden: "nothing here" and "never looked" are different
+  // answers, and both need to be visible without crowding the real findings.
   const componentsHtml = assessment.components
-    .map((component, componentIndex) => {
-      const findingsHtml =
-        component.findings.length > 0
-          ? component.findings
-              .map((finding, findingIndex) => {
-                const path = `components[${componentIndex}].findings[${findingIndex}]`;
-                return renderFinding(finding, path, checksByPath, taintByPath.get(path));
-              })
-              .join("")
-          : `<p class="empty">No findings in this category.</p>`;
+    .map((component) => {
+      const empty = component.findings.length === 0;
+      const findingsHtml = empty
+        ? `<p class="empty">No findings in this category.</p>`
+        : component.findings.map(renderFinding).join("");
       return `
-        <section class="component">
+        <section class="component${empty ? " muted" : ""}">
           <h3>${escapeHtml(CATEGORY_LABEL[component.category] ?? component.category)}</h3>
           <p class="component-summary">${escapeHtml(component.summary)}</p>
           ${findingsHtml}
@@ -163,25 +148,19 @@ export function renderHtmlReport(
         <section id="policy">
           <h2>Policy alignment</h2>
           ${assessment.policyAlignment
-            .map((alignment, policyIndex) => {
+            .map((alignment) => {
               const ref = alignment.policyReference;
-              const refLabel = ref.section ? `${ref.id}#${ref.section}` : ref.id;
-              const source = ref.sourceId ? `<li><strong>Source:</strong> <code>${escapeHtml(ref.sourceId)}</code></li>` : "";
-              const path = `policyAlignment[${policyIndex}]`;
-              const taint = taintByPath.get(path);
+              const quiet = alignment.status === "unknown" || alignment.status === "not_applicable";
               return `
-                <div class="finding${taint ? " tainted" : ""}">
+                <div class="finding${quiet ? " muted" : ""}">
                   <div class="finding-header">
-                    <span class="finding-name"><code>${escapeHtml(refLabel)}</code></span>
-                    <span class="badges">${
-                      taint ? `<span class="badge badge-unverified">Unverified evidence</span>` : ""
-                    }<span class="badge ${policyStatusClass(alignment.status)}">${
-                POLICY_STATUS_LABEL[alignment.status] ?? alignment.status
-              }</span></span>
+                    <span class="finding-name">${escapeHtml(ref.title)}</span>
+                    <span class="badges"><span class="badge ${policyStatusClass(alignment.status)}">${
+                      POLICY_STATUS_LABEL[alignment.status] ?? alignment.status
+                    }</span></span>
                   </div>
                   <p class="finding-description">${escapeHtml(alignment.explanation)}</p>
-                  <ul class="finding-meta">${source}</ul>
-                  ${renderEvidence(alignment.evidence, path, checksByPath)}
+                  <ul class="finding-meta"><li><code>${escapeHtml(`${ref.id}#${ref.section}`)}</code></li></ul>
                 </div>`;
             })
             .join("")}
@@ -204,19 +183,6 @@ export function renderHtmlReport(
           <p>${escapeHtml(assessment.limitations)}</p>
         </section>`
     : "";
-
-  const unverified = unverifiedEvidence(validation);
-  const unverifiedHtml =
-    unverified.length > 0
-      ? `<ul class="validation-list validation-errors">${unverified
-          .map(
-            (check) =>
-              `<li><code>${escapeHtml(check.path)}</code>: ${escapeHtml(
-                describeEvidenceProblem(check) ?? "",
-              )}</li>`,
-          )
-          .join("")}</ul>`
-      : "";
 
   const validationErrorsHtml =
     validation.errors.length > 0
@@ -351,10 +317,8 @@ export function renderHtmlReport(
   ul.evidence { list-style: disc; margin: 0.4rem 0 0.2rem 1.2rem; padding: 0; font-size: 0.92rem; color: var(--muted); }
   ul.evidence li { margin: 0.2rem 0; }
   .badges { display: inline-flex; align-items: center; gap: 0.4rem; }
-  .badge-unverified { background: var(--high-bg); color: var(--high-fg); }
-  .finding.tainted { border-left: 3px solid var(--high-fg); padding-left: 0.8rem; }
-  ul.evidence li.evidence-unverified { color: var(--high-fg); }
-  .evidence-problem { margin: 0.2rem 0; color: var(--high-fg); }
+  .muted { opacity: 0.62; }
+  .muted h3, .muted .finding-name { font-weight: 500; }
   .validation-list { padding-left: 1.2rem; }
   .validation-errors { color: var(--high-fg); }
   .validation-warnings { color: var(--medium-fg); }
@@ -378,7 +342,7 @@ export function renderHtmlReport(
   <p class="summary-line">Agent: ${escapeHtml(runInfo.agentName)}${runInfo.model ? ` (${escapeHtml(runInfo.model)})` : ""}</p>
   ${
     runInfo.repairRounds > 0
-      ? `<p class="summary-line">Evidence repair rounds: ${runInfo.repairRounds}</p>`
+      ? `<p class="summary-line">Schema retries: ${runInfo.repairRounds}</p>`
       : ""
   }
   ${
@@ -398,9 +362,8 @@ export function renderHtmlReport(
   ${openQuestionsHtml}
   ${limitationsHtml}
 
-  <h2>Validation</h2>
+  <h2>Coverage</h2>
   <p>${escapeHtml(summarizeValidation(validation))}</p>
-  ${unverifiedHtml}
   ${validationErrorsHtml}
   ${validationWarningsHtml}
 </main>

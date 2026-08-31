@@ -9,7 +9,12 @@ access_paths:
   - key: default
     label: CHES
     signatures:
-      domains: [ches.api.gov.bc.ca, ches-dev.api.gov.bc.ca, ches-test.api.gov.bc.ca]
+      domains:
+        - ches.api.gov.bc.ca
+        - ches-dev.api.gov.bc.ca
+        - ches-test.api.gov.bc.ca
+        - ches.gov.bc.ca
+      env_vars: [CHES_BASE_URL, CHES_CLIENT_ID, CHES_CLIENT_SECRET, CHES_TOKEN_URL]
     data_residency:
       customer_configurable: unknown
       configured_region_derivable_from_repository: false
@@ -28,6 +33,9 @@ access_paths:
         checked: "2026-08-26"
       - url: https://bcgov.github.io/common-service-showcase/assets/files/common_services_postman_readme
         checked: "2026-08-26"
+
+what_to_look_for:
+  - "CHES is often configured entirely through environment variables with no default host in the code (CHES_BASE_URL, CHES_CLIENT_ID, CHES_CLIENT_SECRET, CHES_TOKEN_URL). The absence of a ches.*.gov.bc.ca literal in the repository is not evidence that CHES is absent — the variable names identify it."
 
 notes: >
   Public documentation establishes the hosted CHES API endpoints and

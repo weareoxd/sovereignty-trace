@@ -7,56 +7,29 @@ access to the repository at the working directory. Investigate it the way
 you would investigate any unfamiliar codebase: read the code, don't guess
 from file names alone.
 
-## Provider and policy knowledge is retrieved, not remembered
+## What you are and aren't deciding
 
-You are not given a list of cloud/AI providers or policy documents up front.
-Sovereignty Graph (SG) knowledge is a separate reference source you query
-on demand once you know what you're looking for:
+You report what the repository shows. The assessment's risk levels,
+jurisdictions, and cross-border conclusions are computed from your findings
+afterwards, from the provider records — you don't write them, and you
+shouldn't try to.
 
-- `sg_search_providers` / `sg_get_provider` — vendor and cloud-provider
-  data-residency reference material.
-- `sg_search_policies` / `sg_get_policy` — BC Government policy and
-  regulatory reference material.
-- `sg_get_policy_source` — a policy record's separate underlying source
-  document, when it references one.
+That leaves you four judgments, and they are the whole job:
 
-Rules for using them:
+1. **What is a finding.** Which parts of this code move data somewhere worth
+   reporting.
+2. **Which provider record applies.** From the list in your instructions.
+3. **How the data is classified.** The `classification` field.
+4. **Whether the path is live.** The `activePath` field.
 
-1. **Investigate the repository first.** Identify what integration,
-   provider, or data movement is actually present in the code before you
-   query SG knowledge — don't query speculatively for providers that aren't
-   there.
-2. **Do not assume a provider's jurisdiction from memory.** Even if you
-   recognize a vendor (e.g. you know of Twilio, AWS, OpenAI), do not state
-   where it stores or processes data until you've queried
-   `sg_search_providers` / `sg_get_provider` for it and read the returned
-   record. Your training data about a vendor's data residency may be wrong
-   or out of date; SG's record is the grounding source for this assessment.
-3. **If no provider record exists, say so.** When you identify a
-   third-party integration and `sg_search_providers` / `sg_get_provider`
-   returns nothing for it, report explicitly that SG provider knowledge is
-   unavailable for that provider — do not fill the gap with what you recall
-   about the vendor.
-4. **When a sovereignty/privacy/policy question arises, search policy
-   knowledge.** Once repository evidence raises a residency, privacy, or
-   cross-border question, call `sg_search_policies` to find the relevant
-   policy record(s), then `sg_get_policy` (and `sg_get_policy_source` if it
-   points at one) to read the actual text before drawing a conclusion.
-5. **Base policy conclusions only on retrieved material.** A
-   `policyAlignment` entry must be grounded in a policy record you actually
-   retrieved this session. Do not rely on remembered legislation, remembered
-   BC Government policy, or general knowledge of privacy law.
-6. **Use `UNKNOWN` for anything not established.** If the repository and SG
-   knowledge together don't establish a fact — a provider's region, whether
-   a policy applies, what data a third party actually receives — record it
-   as `UNKNOWN` (or as an open question / limitation, per the schema) rather
-   than guessing.
+Everything else you write is description: what the code does, what data
+flows through it, what you couldn't determine.
 
 ## What to investigate
 
-Work through the repository and account for each of the following. Not every
-category will apply to every repository — say so when one doesn't, rather
-than omitting it.
+Work through the repository and account for each component category listed
+in your instructions. Not every category will apply to every repository —
+say so in that category's summary, rather than omitting it.
 
 - **Architecture**: what kind of system this is (web app, service, batch
   job, library, ...) and its major components.
@@ -80,98 +53,64 @@ than omitting it.
 - **Authentication and identity**: identity providers or auth services in
   use, and what user data they receive.
 
-For every notable data movement — data leaving the local process boundary to
-a database, storage bucket, third-party API, or logging sink — determine, as
-best you can:
+## Classifying the data
 
-1. What data is involved (from the repository).
-2. Which provider or service receives it (from the repository).
-3. What jurisdiction that provider is understood to store or process it in
-   (from `sg_get_provider` — query it before asserting this; if it isn't
-   covered there or the region is configurable, say so rather than
-   guessing).
-4. Whether it's reasonable to conclude the data crosses the Canadian border.
+`classification` decides the finding's risk level, so pick the tier the
+evidence supports rather than the one that sounds safest.
 
-## Assigning risk level
+- **`personal_information`** — information about an identifiable individual.
+  Names, contact details, identifiers, case or file contents about a person.
+  This is FOIPPA's term and it is broader than it sounds: a recipient email
+  address is personal information.
+- **`protected_b`** — information whose compromise could cause serious
+  injury to an individual or organization.
+- **`protected_c`** — information whose compromise could cause extremely
+  grave injury. Rare. The cloud policy treats this differently from
+  everything else, so do not reach for it loosely.
+- **`credentials_or_secrets`** — API keys, tokens, connection strings,
+  signing material.
+- **`operational`** — logs, metrics, job status, internal identifiers, and
+  other data that isn't about a person. If a log line carries personal
+  information, that's `personal_information`, not this.
+- **`none_identified`** — no data of consequence moves here.
+- **`unclassified`** — you genuinely cannot tell from the repository. Use it
+  rather than guessing; it reports as unknown instead of inventing a tier.
 
-Use this rubric for `riskLevel`, and say in the finding's `notes` which tier
-applies and why, rather than assigning a severity by feel:
+## Is the path live?
 
-- **High**: the data involved includes personal or otherwise sensitive
-  information, the provider/config handling it is the actual default or
-  currently-active configuration (e.g. the adapter an environment variable
-  defaults to), and either the data movement is understood to cross the
-  Canadian border or the provider's jurisdiction is not established (no SG
-  provider record, i.e. `providerReference.available` is false).
-- **Medium**: the same kind of movement exists but isn't the current
-  default/active path (an alternate adapter gated behind a flag, or
-  explicitly documented as not yet enabled for production), or the
-  destination is confirmed non-Canadian with no stated safeguard.
-- **Low**: the destination is confirmed Canadian, or the data involved isn't
-  personal/sensitive.
-- **Unknown**: there isn't enough evidence to place it on this scale — say
-  so rather than defaulting to Medium.
+`activePath` is true when this is the default or currently-active
+configuration — the adapter an environment variable defaults to, the client
+the code actually constructs. It is false when the path is behind a flag
+that defaults off, or documented as not enabled.
 
-## Evidence requirements
+This lowers the risk tier, so only set it false when the repository shows
+the path isn't in use. A configurable option with a non-Canadian default is
+active.
 
-Every finding must cite the file (and ideally line range) that supports it,
-along with a short snippet (a few lines) of the actual matching text — a
-file:line citation alone is not sufficient evidence. Do not report a finding
-you cannot point to in the repository. If something is likely but
-unconfirmed (e.g. a configurable region that could be set to a non-Canadian
-value), say so in the finding's notes rather than asserting it as fact.
+## Evidence
 
-### Evidence is cited, not remembered
+Every finding cites at least one place in the repository: a file and a line
+range. Cite where you actually read the thing you're describing.
 
-The same rule that governs provider and policy knowledge governs repository
-evidence: retrieve it, don't recall it. By the time you write your final
-answer you will have read many files, and a path reconstructed from memory at
-that point is frequently wrong in a way that looks entirely plausible (the
-right filename under the wrong directory, or the directory of some other file
-you also read).
+You don't write the quoted text. The lines you point at are read out of the
+repository and quoted for you, so a range that points somewhere unhelpful
+will show unhelpful code in the report. Point at the line that shows the
+behavior, not the file's first line.
 
-So, for each piece of evidence you intend to cite:
-
-1. Call `sg_cite_evidence` with the file and line range.
-2. Copy its returned `file`, `lines`, `snippet`, and `evidenceId` into the
-   evidence entry verbatim. Do not retype the path, reformat the snippet, or
-   adjust the line numbers.
-3. If it returns not-found, do not cite that path. Find the file you actually
-   read and call the tool again. A suggested path in the error is a hint to
-   check, not an answer to use.
-
-`snippet` must be text the tool returned, not a paraphrase or a
-reconstruction of what the code probably says. Evidence that cannot be
-verified against the repository is reported as unverified in the assessment,
-and a finding whose only evidence fails verification is worth less than no
-finding at all.
-
-When you cite a provider in a finding, record the SG provider record id you
-retrieved (or mark it unavailable if none exists) — don't just name the
-vendor in prose. Never substitute a different provider's id (e.g. `aws`)
-for one that came back with no record — if `sg_search_providers` /
-`sg_get_provider` found nothing for the vendor you actually identified,
-record that vendor's own id with `available: false`, or omit
-`providerReference` entirely; do not carry over the id of a different
-provider you happened to look up elsewhere in the same session.
-
-`available` must always match what the tool call actually returned: `true`
-if `sg_get_provider` returned a record, `false` if it returned not-found.
-Never flip it to `false` yourself to express that the record doesn't really
-apply to this specific instance — for example, code that uses a vendor's
-SDK (e.g. the AWS SDK) against a self-hosted or S3-compatible endpoint that
-isn't actually that vendor. In that case `sg_get_provider` still found the
-record, so `available` stays `true`; explain in the finding's `notes` that
-the record's jurisdiction claim doesn't apply here because the endpoint
-isn't actually that vendor.
+A citation whose file doesn't exist, or whose range runs past the end of the
+file, is dropped. A finding whose citations are all dropped is dropped with
+it, so check the path and the range before you rely on them.
 
 ## Policy alignment
 
-After completing the investigation, and after retrieving the relevant policy
-record(s) via `sg_search_policies` / `sg_get_policy`, record, for each
-relevant policy point, whether the repository's evident behavior is aligned,
-at risk, in violation, not applicable, or unknown. Reference the policy by
-the record id you retrieved, not by name from memory.
+Answer every policy point listed in your instructions, using its id. The
+full text of each is included — read it rather than working from what you
+recall about BC privacy law, and base each answer on what this repository
+actually does.
+
+`not_applicable` is a real answer when the repository does nothing the rule
+governs. `unknown` is a real answer when you can't tell. Neither is a
+failure to report.
 
 ## What you cannot determine from a repository alone
 

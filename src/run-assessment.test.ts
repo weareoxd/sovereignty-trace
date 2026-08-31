@@ -19,7 +19,7 @@ const HALLUCINATED_FILE = "backend/src/common/guards/auth.jwt-strategy.ts";
 let repositoryPath: string;
 
 before(async () => {
-  repositoryPath = await mkdtemp(join(tmpdir(), "sg-repair-"));
+  repositoryPath = await mkdtemp(join(tmpdir(), "sg-run-"));
   const absolute = join(repositoryPath, REAL_FILE);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, `${REAL_SNIPPET}\n  constructor() {}\n}\n`, "utf8");
@@ -29,11 +29,9 @@ after(async () => {
   await rm(repositoryPath, { recursive: true, force: true });
 });
 
-function assessmentCiting(file: string) {
+function draftCiting(file: string) {
   return {
-    schemaVersion: "1.0",
     summary: "Test assessment.",
-    overallRisk: "low",
     components: [
       {
         category: "authentication_and_identity",
@@ -42,12 +40,15 @@ function assessmentCiting(file: string) {
           {
             name: "Authentication via BC Government SSO (Keycloak)",
             description: "Validates Keycloak-issued JWTs.",
-            riskLevel: "low",
-            evidence: [{ file, lines: "1", snippet: REAL_SNIPPET }],
+            providerId: "bcgov-sso",
+            classification: "personal_information",
+            activePath: true,
+            evidence: [{ file, lines: "1" }],
           },
         ],
       },
     ],
+    policyAlignment: [],
   };
 }
 
@@ -77,83 +78,100 @@ class StubAgent implements CodingAgent {
   }
 }
 
-test("hands a bad citation back to the same session and accepts the correction", async () => {
+test("resolves a good citation out of the repository in one session", async () => {
+  const agent = new StubAgent([resultWith(draftCiting(REAL_FILE))]);
+
+  const outcome = await runAssessment({ agent, repositoryPath });
+
+  assert.equal(agent.calls.length, 1);
+  assert.equal(outcome.runInfo.repairRounds, 0);
+
+  const finding = outcome.validation.assessment?.components
+    .find((component) => component.category === "authentication_and_identity")
+    ?.findings[0];
+  // The snippet was never in the draft. It comes from the file.
+  assert.equal(finding?.evidence[0]?.snippet, REAL_SNIPPET);
+  assert.ok(finding?.evidence[0]?.evidenceId);
+});
+
+test("drops a bad citation without going back to the agent", async () => {
+  const agent = new StubAgent([resultWith(draftCiting(HALLUCINATED_FILE))]);
+
+  const outcome = await runAssessment({ agent, repositoryPath });
+
+  assert.equal(agent.calls.length, 1, "a dropped citation is not worth a second session");
+  assert.equal(outcome.runInfo.repairRounds, 0);
+  assert.equal(outcome.validation.droppedEvidence.length, 1);
+  assert.equal(outcome.validation.droppedEvidence[0]?.reason, "file_missing");
+  // The nearest real file is recorded, for whoever reads the report.
+  assert.equal(outcome.validation.droppedEvidence[0]?.suggestion, REAL_FILE);
+});
+
+test("removes a finding whose every citation was dropped", async () => {
+  const agent = new StubAgent([resultWith(draftCiting(HALLUCINATED_FILE))]);
+
+  const outcome = await runAssessment({ agent, repositoryPath });
+
+  assert.equal(outcome.validation.droppedFindings.length, 1);
+  const category = outcome.validation.assessment?.components.find(
+    (component) => component.category === "authentication_and_identity",
+  );
+  assert.equal(category?.findings.length, 0);
+});
+
+test("reports every component category and policy rule, answered or not", async () => {
+  const agent = new StubAgent([resultWith(draftCiting(REAL_FILE))]);
+
+  const outcome = await runAssessment({ agent, repositoryPath });
+  const assessment = outcome.validation.assessment;
+
+  assert.equal(assessment?.components.length, 10);
+  assert.equal(assessment?.policyAlignment.length, 6);
+  // The draft answered no policy rules, so all six come back unknown.
+  assert.ok(assessment?.policyAlignment.every((entry) => entry.status === "unknown"));
+});
+
+test("retries once when the draft does not parse, and accepts the correction", async () => {
   const agent = new StubAgent([
-    resultWith(assessmentCiting(HALLUCINATED_FILE)),
-    resultWith(assessmentCiting(REAL_FILE)),
+    resultWith({ summary: "truncated" }),
+    resultWith(draftCiting(REAL_FILE)),
   ]);
 
   const outcome = await runAssessment({ agent, repositoryPath });
 
-  assert.equal(outcome.validation.valid, true);
-  assert.equal(outcome.runInfo.repairRounds, 1);
   assert.equal(agent.calls.length, 2);
+  assert.equal(outcome.runInfo.repairRounds, 1);
   assert.equal(agent.calls[1]?.resumeSessionId, "session-1");
-  assert.match(agent.calls[1]?.instructions ?? "", /Citations to fix/);
-  assert.match(agent.calls[1]?.instructions ?? "", new RegExp(HALLUCINATED_FILE));
-  // The suggester's answer is offered to the agent as a hint to verify.
-  assert.match(agent.calls[1]?.instructions ?? "", new RegExp(REAL_FILE));
+  assert.match(agent.calls[1]?.instructions ?? "", /did not conform to the output schema/);
+  assert.ok(outcome.validation.assessment);
 });
 
-test("stops after the configured number of repair rounds", async () => {
-  const agent = new StubAgent([resultWith(assessmentCiting(HALLUCINATED_FILE))]);
+test("does not retry when disabled", async () => {
+  const agent = new StubAgent([resultWith({ summary: "truncated" })]);
 
-  const outcome = await runAssessment({ agent, repositoryPath, maxRepairRounds: 2 });
+  const outcome = await runAssessment({ agent, repositoryPath, maxRetries: 0 });
 
-  assert.equal(outcome.validation.valid, false);
-  assert.equal(outcome.runInfo.repairRounds, 2);
-  assert.equal(agent.calls.length, 3);
-});
-
-test("does not attempt repair when disabled", async () => {
-  const agent = new StubAgent([resultWith(assessmentCiting(HALLUCINATED_FILE))]);
-
-  const outcome = await runAssessment({ agent, repositoryPath, maxRepairRounds: 0 });
-
-  assert.equal(outcome.runInfo.repairRounds, 0);
   assert.equal(agent.calls.length, 1);
-  assert.equal(outcome.validation.taintedFindings.length, 1);
+  assert.equal(outcome.validation.assessment, undefined);
+  assert.ok(outcome.validation.errors.length > 0);
 });
 
-test("does not run a repair round when the first result already verifies", async () => {
-  const agent = new StubAgent([resultWith(assessmentCiting(REAL_FILE))]);
-
-  const outcome = await runAssessment({ agent, repositoryPath });
-
-  assert.equal(outcome.validation.valid, true);
-  assert.equal(outcome.runInfo.repairRounds, 0);
-  assert.equal(agent.calls.length, 1);
-});
-
-test("keeps the original assessment when a repair round errors out", async () => {
+test("keeps the failure when a retry errors out", async () => {
   const agent = new StubAgent([
-    resultWith(assessmentCiting(HALLUCINATED_FILE)),
+    resultWith({ summary: "truncated" }),
     { sessionId: "session-1", isError: true, stopReason: "crashed" },
   ]);
 
   const outcome = await runAssessment({ agent, repositoryPath });
 
   assert.equal(outcome.runInfo.repairRounds, 1);
-  assert.ok(outcome.validation.assessment, "the first assessment should survive a failed repair");
-  assert.equal(outcome.validation.taintedFindings.length, 1);
+  assert.equal(outcome.validation.assessment, undefined);
 });
 
-test("keeps the original assessment when a repair round returns invalid output", async () => {
+test("totals cost across the initial session and retries", async () => {
   const agent = new StubAgent([
-    resultWith(assessmentCiting(HALLUCINATED_FILE)),
-    resultWith({ schemaVersion: "1.0", summary: "truncated" }),
-  ]);
-
-  const outcome = await runAssessment({ agent, repositoryPath });
-
-  assert.ok(outcome.validation.assessment);
-  assert.equal(outcome.validation.assessment?.components.length, 1);
-});
-
-test("totals cost across the initial session and repair rounds", async () => {
-  const agent = new StubAgent([
-    resultWith(assessmentCiting(HALLUCINATED_FILE)),
-    resultWith(assessmentCiting(REAL_FILE)),
+    resultWith({ summary: "truncated" }),
+    resultWith(draftCiting(REAL_FILE)),
   ]);
 
   const outcome = await runAssessment({ agent, repositoryPath });

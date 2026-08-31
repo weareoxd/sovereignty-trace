@@ -1,9 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { reviewAssessmentOutput } from "../assessment/review.js";
 import type {
   CodingAgent,
@@ -25,9 +24,9 @@ import type {
  * - ACP framing is one JSON object per line, *not* LSP-style
  *   Content-Length-prefixed framing.
  * - `session/new`'s `mcpServers` param is rejected outright ("ACP-provided
- *   MCP servers are not supported by this agent") — MCP servers must instead
- *   be declared in a `--mcp-config` JSON file passed as a CLI flag when the
- *   process is spawned. See sgMcpConfig() below.
+ *   MCP servers are not supported by this agent"). This adapter no longer
+ *   serves any MCP tools, but the rejection is worth recording: anything
+ *   added later has to go through a `--mcp-config` file at spawn time.
  * - When asked for a large final JSON answer, the underlying model tends to
  *   draft it into a scratch file with a write tool rather than restate it in
  *   its final chat message — observed twice against different repos, each
@@ -56,14 +55,9 @@ export interface SwivalReviewOptions {
   /**
    * Review rounds swival may spend correcting an answer. Kept well below
    * swival's own default of 15 because each round re-emits the whole
-   * assessment; `runAssessment`'s repair loop is the backstop.
+   * assessment; `runAssessment`'s schema retry is the backstop.
    */
   maxRounds?: number;
-  /**
-   * Also reject findings whose citations don't verify, not just documents
-   * that don't parse.
-   */
-  requireEvidence?: boolean;
   /** Set false to run without a reviewer (the pre-1.0.41 behavior). */
   enabled?: boolean;
 }
@@ -81,7 +75,14 @@ export class SwivalAgent implements CodingAgent {
   }
 }
 
-const SG_MCP_SERVER_PATH = join(dirname(fileURLToPath(import.meta.url)), "sg-mcp-server.js");
+/**
+ * Sampling controls for the assessment session. Greedy decoding with a fixed
+ * seed, so a rerun over the same repository is as close to reproducible as the
+ * provider allows. Whether the seed does anything is provider-dependent; the
+ * temperature is the part that matters.
+ */
+const SAMPLING_TEMPERATURE = 0;
+const SAMPLING_SEED = 20260829;
 
 /** The final answer as resolved from the output file or the chat message. */
 interface ResolvedAnswer {
@@ -172,25 +173,21 @@ class SwivalSession implements CodingAgentSession {
   private async drive(): Promise<void> {
     let scratchDir: string | undefined;
     try {
-      // Shared by the MCP config file (read by swival at startup) and, when
-      // outputSchema is set, the final-answer file swival is granted write
-      // access to below — one temp dir, cleaned up together in `finally`.
+      // Holds the final-answer file swival is granted write access to below,
+      // when outputSchema is set. Cleaned up in `finally`.
       scratchDir = await mkdtemp(join(tmpdir(), "sovereignty-graph-swival-"));
-      const mcpConfigPath = join(scratchDir, "mcp.json");
-      await writeFile(mcpConfigPath, sgMcpConfig(this.options.cwd), "utf8");
       const outputFilePath = this.options.outputSchema
         ? join(scratchDir, "assessment-output.json")
         : undefined;
 
-      this.spawnChild(mcpConfigPath, scratchDir);
+      this.spawnChild(scratchDir);
       this.watchAbortSignal();
 
       await this.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
 
       const sessionNew = await this.request("session/new", {
         cwd: this.options.cwd,
-        // ACP-supplied mcpServers are rejected by swival; MCP is wired via
-        // the --mcp-config file instead (see spawnChild).
+        // Required by the protocol, and rejected by swival if non-empty.
         mcpServers: [],
       });
       const sessionId = (sessionNew.result as { sessionId: string }).sessionId;
@@ -293,10 +290,7 @@ class SwivalSession implements CodingAgentSession {
       // and reported as a failed assessment downstream.
       if (current.structuredOutput === undefined || current.error) return current;
 
-      const verdict = await reviewAssessmentOutput(current.structuredOutput, {
-        repositoryPath: this.options.cwd,
-        requireVerifiedEvidence: this.review.requireEvidence !== false,
-      });
+      const verdict = await reviewAssessmentOutput(current.structuredOutput);
       if (verdict.accepted) return current;
 
       this.push({
@@ -330,7 +324,7 @@ class SwivalSession implements CodingAgentSession {
     return current;
   }
 
-  private spawnChild(mcpConfigPath: string, writableScratchDir: string): void {
+  private spawnChild(writableScratchDir: string): void {
     const args: string[] = [];
     if (this.options.model) args.push("--model", this.options.model);
     args.push(
@@ -339,8 +333,15 @@ class SwivalSession implements CodingAgentSession {
       "--no-history",
       "--no-continue",
       "--no-a2a",
-      "--mcp-config",
-      mcpConfigPath,
+      // Sampling is pinned so two runs over the same repository differ only
+      // where the model genuinely read something differently, not because it
+      // sampled differently. ClaudeCodeAgent has no equivalent: the Claude
+      // Agent SDK exposes no temperature, top-p, or seed option, so that
+      // runtime runs at the provider default and this one does not.
+      "--temperature",
+      String(SAMPLING_TEMPERATURE),
+      "--seed",
+      String(SAMPLING_SEED),
       // Write access to the scratch dir only — the target repository stays
       // at swival's default workspace access, which does not include this
       // directory, so the model's own draft-then-answer file lands outside
@@ -465,18 +466,6 @@ class SwivalSession implements CodingAgentSession {
   private waitForMore(): Promise<void> {
     return new Promise((resolve) => this.waiters.push(resolve));
   }
-}
-
-function sgMcpConfig(repositoryPath: string): string {
-  return JSON.stringify(
-    {
-      mcpServers: {
-        sg: { command: process.execPath, args: [SG_MCP_SERVER_PATH, repositoryPath] },
-      },
-    },
-    null,
-    2,
-  );
 }
 
 /**

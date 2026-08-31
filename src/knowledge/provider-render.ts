@@ -1,12 +1,13 @@
 import type { AccessPath, ProviderEntry, RegionFact } from "./provider-schema.js";
 
 /**
- * Renders a validated provider entry into the prose text sg_get_provider
- * returns to the coding agent. The tool contract doesn't change — it's
- * still one text blob per provider — but the text is now generated from
- * fixed fields instead of freehand-written each time, so the same facts
- * (region status, evidence, verification date) show up in the same place
- * and the same words on every entry.
+ * Renders a validated provider entry into the prose form a person reads: one
+ * text blob per provider, generated from fixed fields rather than written
+ * freehand, so the same facts (region status, evidence, verification date)
+ * show up in the same place and the same words on every entry.
+ *
+ * The assessment pipeline does not read this. It reads the validated entry
+ * itself (see ./store.ts `ProviderDoc` and ../assessment/residency.ts).
  */
 export function renderProvider(entry: ProviderEntry): string {
   const lines: string[] = [];

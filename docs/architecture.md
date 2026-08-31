@@ -21,106 +21,116 @@ do the investigation, and keeps its own responsibility narrow:
 2. Give it a consistent, written assessment methodology
    ([`prompts/methodology.md`](../prompts/methodology.md)) — how to
    investigate, what to look for, how to record evidence, how to represent
-   unknowns, and how to structure the final answer. This is the *only*
-   content in the session's opening instructions.
-3. Expose trusted provider ([`providers/`](../providers/)) and policy
-   ([`policies/`](../policies/)) reference material as **on-demand
-   knowledge** the agent queries once it has actually identified something
-   worth grounding — not as content preloaded into every session.
-4. Require its output to conform to a structured, evidence-backed schema
-   ([`src/assessment/schema.ts`](../src/assessment/schema.ts)) that
-   captures which provider/policy records it used.
-5. Validate that output before treating it as a result
-   ([`src/assessment/validation.ts`](../src/assessment/validation.ts)),
-   including that every cited provider/policy record actually exists.
+   unknowns — along with the policy text and the provider index it will need.
+3. Take its answer as **observations only**, and compute everything derived
+   from them in code: the quoted evidence, the destination jurisdictions, the
+   risk levels, the coverage.
 
-The agent is responsible for understanding the repository *and* for
-discovering which provider/policy knowledge is relevant to it. Sovereignty
-Graph is responsible for the fixed methodology, for grounding external
-facts through its own trusted knowledge rather than the agent's training
-data, and for checking the agent's work.
+## What the agent decides, and what code decides
 
-## Methodology vs. knowledge
+This is the load-bearing split, and it was not the original design. When the
+agent filled in every field of the assessment itself — including the risk
+scores, the jurisdictions, and the snippets it quoted — five runs against the
+same commit produced 0, 4, 1, 5 and 4 high-risk findings, and four of the five
+failed validation.
 
-These are two different things and the architecture keeps them apart:
+The agent now makes four judgments per finding, and writes the prose:
 
-- **Methodology** ([`prompts/`](../prompts/)) is instructions — it goes in
-  the opening prompt of every session, because every assessment needs it
-  regardless of what the repository turns out to contain.
-- **Provider and policy knowledge** ([`providers/`](../providers/),
-  [`policies/`](../policies/)) is reference data — it is *not* instructions
-  and is never dumped into the opening prompt. A given repository might
-  touch one provider or a dozen; loading all of them up front would waste
-  context on material that's irrelevant to this particular assessment, and
-  would not scale as more providers/policies are added. Instead the agent
-  discovers what's relevant by investigating the repository, then retrieves
-  only those specific records through the SG knowledge interface described
-  below.
+1. That something is a finding at all.
+2. Which provider record applies, chosen from a list it is shown.
+3. How the data is classified (`personal_information`, `protected_b`,
+   `protected_c`, `credentials_or_secrets`, `operational`, `none_identified`,
+   `unclassified`).
+4. Whether the code path is the active one or an alternate.
 
-This split is what lets the same knowledge interface serve any coding-agent
-runtime: methodology is just text handed to `startSession`, while knowledge
-is exposed through whatever on-demand tool-calling mechanism that runtime
-supports (MCP, function calling, or otherwise).
+Code does the rest, in [`src/assessment/`](../src/assessment/):
+
+- `hydrate-evidence.ts` reads the cited line ranges out of the repository. The
+  agent reports a path and a range; it never writes the quoted text, so a
+  fabricated quote is not expressible. A citation that doesn't resolve is
+  dropped, and a finding whose citations were all dropped goes with it.
+- `residency.ts` reads `storage_regions` and `processing_regions` off the
+  provider record the agent named.
+- `risk.ts` is the scoring rule, as a pure function of classification,
+  residency, and active-vs-alternate. It used to be prose in the methodology
+  prompt, applied by feel.
+- `assemble.ts` enumerates all ten component categories and all six policy
+  points, so a category the agent skipped reports as unreported rather than
+  vanishing.
+- `validation.ts` is what's left to check: does the draft parse, and was the
+  ground covered.
+
+## Two schemas
+
+[`src/assessment/schema.ts`](../src/assessment/schema.ts) defines both shapes
+with Zod and derives the agent's JSON Schema from the first (`z.toJSONSchema`)
+so the two never drift apart.
+
+- `AssessmentDraftSchema` is what the agent returns. Evidence entries carry a
+  file, a line range, and a note — no snippet. There is no `riskLevel`, no
+  `overallRisk`, no `crossesBorder`, no `destinationJurisdiction`.
+- `SovereigntyAssessmentSchema` is the finished document, built from the draft.
+
+`providerId` and `ruleId` are enums built at runtime from the record filenames
+in `providers/` and the `citable_sections` in `policies/`. That matters: asked
+for the id as free text, with no list in front of it, an assessment invented
+`ches` for a record named `bcgov-ches`, and the exact-match lookup missed.
+
+## Methodology and knowledge
+
+- **Methodology** ([`prompts/`](../prompts/)) is instructions.
+- **Policy text** ([`policies/`](../policies/)) is pasted into every session in
+  full — 13.7 KB. It used to be fetched through tools on demand, and the result
+  was that runs answered 2, then 4, then 3, then 5, then 4 of the same six
+  policy points. Judging alignment means reading the text, so the text is there.
+- **Provider records** ([`providers/`](../providers/)) reach the agent only as
+  an identification index: id, name, description, and the access-path
+  signatures (domains, package names). Under 10 KB. Residency is deliberately
+  withheld — that is what code reads off the record afterwards, and showing it
+  would invite the agent to restate it from memory.
 
 ## The SG knowledge interface
 
 [`src/knowledge/`](../src/knowledge/) is a small, runtime-independent,
-read-only API over `providers/` and `policies/`:
+read-only API over `providers/` and `policies/`. It does no reasoning; it
+loads, validates, and renders the records in those directories.
 
-- `searchProviders(query)` / `getProvider(id)`
-- `searchPolicies(query)` / `getPolicy(id)`
-- `getPolicySource(id)` — a policy record's separate underlying source
-  document, for policy frameworks that reference one (none do yet; this
-  degrades to "not found" until a `policy-sources/` directory exists).
+The store keeps each record in both forms: the rendered prose a person reads,
+and the validated entry code reads. `getProvider(id)` returns the prose;
+`getProviderEntry(id)` returns the entry the risk score is computed from.
 
-It does no reasoning about providers or policy — it only loads and searches
-the records already in those directories (structured YAML for providers,
-rendered to text; Markdown for policies), the same content that used to be
-embedded directly in the instructions. Nothing about it is Claude-specific,
-so any future adapter can call these functions directly.
+For the assessment pipeline the relevant functions are `buildProviderIndex()`,
+`buildPolicyBrief()`, `listProviderIds()`, `listPolicyRules()`, and
+`getProviderEntry(id)`.
 
-### Claude Code integration
+### No MCP server
 
-[`src/agents/sg-tools.ts`](../src/agents/sg-tools.ts) is the Claude-specific
-half: it wraps the four (five, counting `getPolicySource`) SG knowledge
-functions as an in-process MCP server using the Claude Agent SDK's
-`createSdkMcpServer` / `tool` helpers, and registers it with the session via
-`mcpServers: { sg: sgKnowledgeServer }` in
-[`src/agents/claude-code.ts`](../src/agents/claude-code.ts). The agent sees
-them as ordinary callable tools: `sg_search_providers`, `sg_get_provider`,
-`sg_search_policies`, `sg_get_policy`, `sg_get_policy_source`.
-
-A Codex or Copilot adapter would import the same functions from
-`src/knowledge/` and register them through whatever tool/function-calling
-mechanism that runtime exposes — the `CodingAgent` core interface doesn't
-need to know this integration exists, and `src/knowledge/` doesn't need to
-know Claude Code exists.
+There was one, exposing `sg_search_providers`, `sg_get_provider`,
+`sg_search_policies`, `sg_get_policy`, `sg_get_policy_source` and
+`sg_cite_evidence` — in-process for Claude Code, as a spawned stdio subprocess
+for swival. It is gone. Policy text is inlined, provider knowledge is split
+into an index for the agent and entries for code, and citations are resolved
+against the repository rather than minted through a tool. Both adapters keep
+their own file tools, so neither is blinded.
 
 ## Pipeline
 
 ```
 Sovereignty Graph (CLI / library)
-    -> CodingAgent.startSession({ cwd, instructions, outputSchema, ... })
-    -> Claude Code SDK (query()), with the SG knowledge MCP server registered
-    -> repository investigation (agent reads/greps/runs commands in cwd)
-         -> agent identifies an integration
-         -> agent calls sg_search_providers / sg_get_provider on demand
-         -> agent identifies a sovereignty/privacy question
-         -> agent calls sg_search_policies / sg_get_policy on demand
-    -> structured sovereignty assessment (agent's final answer, matching outputSchema),
-       citing the specific provider/policy record ids it retrieved
-    -> validated against the schema + evidence-file-exists check
-       + cited provider/policy record ids actually exist
-    -> Markdown / JSON report
+ 0. gather repo facts (languages, file count, ignore patterns)          [code]
+ 1. build the brief: role + methodology + provider index + policy text  [code]
+ 2. investigate; return a draft of observations                        [agent]
+ 3. read the cited line ranges out of the repository                    [code]
+ 4. read residency off the named provider records                       [code]
+ 5. score each finding, roll up the overall risk                        [code]
+ 6. assemble; check the draft parsed and the ground was covered         [code]
+ 7. render Markdown / JSON / HTML                                       [code]
 ```
 
-`src/run-assessment.ts` wires this together: it builds instructions from
-[`src/assessment/methodology.ts`](../src/assessment/methodology.ts) (which
-loads only `prompts/role.md` and `prompts/methodology.md` — no provider or
-policy content), starts a session via the `CodingAgent` passed to it (for
-Claude Code, this also registers the SG knowledge MCP server), drains its
-event stream, and validates the resulting structured output via
-[`src/assessment/validation.ts`](../src/assessment/validation.ts).
+`src/run-assessment.ts` wires this together. The retry loop fires only when
+step 2 returns something that doesn't parse; a dropped citation is handled in
+step 3 without another round trip, because sending the whole document back for
+a re-print re-rolled every other field along with it.
 
 ## The `CodingAgent` interface
 
@@ -159,68 +169,71 @@ implement `CodingAgent` but throw on `startSession`, which exists to prove
 the interface doesn't assume anything Claude Code-specific before those
 adapters are actually built.
 
-## The structured assessment schema
+## The scoring rule
 
-[`src/assessment/schema.ts`](../src/assessment/schema.ts) defines
-`SovereigntyAssessmentSchema` with Zod, and derives the JSON Schema passed
-to the agent from it (`z.toJSONSchema`) so the two never drift apart. Every
-data-movement finding requires at least one piece of evidence (a repository
-file path, optionally a line range and snippet) — the schema enforces this
-structurally rather than relying on the agent to remember to cite sources.
+The model supplies the classification and the active/alternate flag; code
+supplies the residency. [`risk.ts`](../src/assessment/risk.ts) holds the table,
+and [`risk.test.ts`](../src/assessment/risk.test.ts) has a case per row.
 
-Findings also reference SG knowledge records explicitly, rather than only
-naming a vendor or policy in prose:
+| Classification | Residency | Active | Alternate |
+|---|---|---|---|
+| `protected_c` | anything but Canada | high | high |
+| `personal_information`, `protected_b`, `protected_c` | outside Canada | high | medium |
+| `personal_information`, `protected_b`, `protected_c` | unknown, or no record | high | medium |
+| `personal_information`, `protected_b`, `protected_c` | Canada | low | low |
+| `credentials_or_secrets` | not Canada | medium | low |
+| `operational` | outside Canada | medium | low |
+| `operational` | Canada or unknown | low | low |
+| `none_identified` | any | low | low |
+| `unclassified` | any | unknown | unknown |
+| anything | self-hosted | low | low |
 
-- `DataMovementFinding.providerReference` — `{ id, available }`, the SG
-  provider record id the agent looked up (`sg_get_provider`) and whether
-  one was actually found. `available: false` means the agent identified a
-  provider but SG has no reference material for it — a fact worth
-  surfacing, not a validation failure.
-- `PolicyAlignment.policyReference` — `{ id, section?, sourceId? }`, the SG
-  policy record id the agent looked up (`sg_get_policy`), an optional
-  section/anchor within it, and an optional separate source document id
-  (`sg_get_policy_source`).
+Two rows are worth explaining.
+
+**Unknown residency scores the same as leaving Canada.** 16 of 21 provider
+records state no storage residency and all 30 are marked `UNVERIFIED`, so the
+common case is "record found, residency still unknown". The prose rubric this
+replaced had no tier for it — its High tier only covered a *missing* record —
+so the agent picked one by feel, and that is most of where the run-to-run
+spread came from. Treating unknown as milder would score most of the registry
+as safe by default.
+
+**Self-hosted is low.** A cache or database inside the deployment's own
+infrastructure has not moved data across a border. Where the deployment itself
+runs is one finding under `infrastructure`, with its own provider record,
+rather than a border question restated against every component inside it.
+
+There is no per-finding override. A score that reads wrong means the rule is
+wrong and the rule gets changed.
 
 ## Validation
 
-Validation is intentionally basic, matching the "no custom static-analysis
-engine" constraint: `validateAssessment` (in
-[`src/assessment/validation.ts`](../src/assessment/validation.ts), now
-async since it consults `src/knowledge/`) parses the agent's output against
-the Zod schema, then checks:
+What is left to check once the agent stops writing derived fields:
 
-- every evidence `file` path cited actually exists in the repository that
-  was assessed (and doesn't resolve outside it);
-- every `providerReference.id` exists in SG provider knowledge
-  (`getProvider`) — an error if not, since the agent asserted it as a
-  lookup it made;
-- every `policyReference.id` exists in SG policy knowledge (`getPolicy`) —
-  an error if not;
-- every `policyReference.sourceId`, when present, exists in SG policy
-  source knowledge (`getPolicySource`) — a warning if not, since policy
-  source records aren't modeled for every policy today.
+- Does the draft parse against the schema, including the `providerId` and
+  `ruleId` enums.
+- Were all ten component categories reported on.
+- Were all six policy points answered.
+- Which citations were dropped, and which findings went with them.
 
-This catches the most basic failure modes — an agent citing evidence or a
-knowledge record that doesn't exist — without attempting to verify that the
-evidence or knowledge actually *supports* the finding, or that the
-finding's reasoning is semantically correct, which would require the kind
-of bespoke analysis this project deliberately avoids building.
+What used to be here and is not any more: evidence-file existence, snippet
+matching, and checking that a provider record the agent marked "found" had
+actually been found. All three checked things the agent typed from memory, and
+it no longer types any of them.
+
+None of this verifies that evidence actually *supports* a finding, or that the
+reasoning is sound. That would require the bespoke analysis this project
+deliberately avoids building.
 
 ## Adding a new agent runtime
 
 1. Implement `CodingAgent` in `src/agents/<runtime>.ts`, translating the
    runtime's native session/streaming API into `CodingAgentSession` and
    `CodingAgentEvent`.
-2. Expose the SG knowledge functions (`src/knowledge/index.ts`) as callable
-   tools through whatever mechanism that runtime supports — its own
-   function-calling API, an MCP client, or otherwise. Two options already
-   exist: `src/agents/sg-tools.ts` wraps them as an in-process MCP server
-   for the Claude Agent SDK; `src/agents/sg-mcp-server.ts` wraps the same
-   tool definitions (`src/agents/sg-tool-defs.ts`) as an external stdio MCP
-   server, for a runtime that only connects to MCP servers as subprocesses
-   (used by `SwivalAgent`; likely reusable as-is for Codex/Copilot). Either
-   way, this is adapter-specific glue — it should not require changes to
-   `src/knowledge/` itself.
+2. Nothing to do for knowledge. Provider and policy material reaches the agent
+   through the opening instructions, which `run-assessment.ts` builds the same
+   way for every runtime. An adapter only has to deliver `instructions` and a
+   working directory, and give the agent some way to read files.
 3. If the runtime can't natively enforce a JSON Schema on its output, do
    your best effort and leave `structuredOutput` undefined when that fails
    — `runAssessment` already treats a missing `structuredOutput` as a
@@ -257,13 +270,16 @@ maintainer bumping swival versions should re-check them:
 - ACP framing is one JSON object per line. It is *not* LSP-style
   `Content-Length`-prefixed framing, despite superficially resembling other
   JSON-RPC-over-stdio protocols that use that framing.
-- `session/new`'s `mcpServers` parameter looks like the right place to
-  attach `sg-mcp-server.ts`, but swival's ACP server rejects any non-empty
-  value there ("ACP-provided MCP servers are not supported by this agent").
-  MCP servers have to be declared in a `--mcp-config <file>` JSON file
-  passed as a CLI argument when the process is spawned instead; `session/new`
-  must still be called with `mcpServers: []`. `SwivalAgent` writes this file
-  to a temp directory per session and cleans it up afterward.
+- swival's ACP server rejects any non-empty `mcpServers` value on
+  `session/new` ("ACP-provided MCP servers are not supported by this agent");
+  MCP servers have to be declared in a `--mcp-config <file>` JSON file passed
+  at spawn time instead, and `session/new` must still be called with
+  `mcpServers: []`. This adapter serves no MCP tools any more, but the
+  constraint is recorded here because anything added later runs into it.
+- swival accepts `--temperature`, `--seed` and `--top-p`; `SwivalAgent` pins
+  the first two. The Claude Agent SDK exposes no equivalent, so
+  `ClaudeCodeAgent` runs at the provider default and the two runtimes are not
+  comparable on run-to-run variance.
 - Asked for a long structured final answer, the underlying model tends to
   draft it into a file with a write tool rather than restate it in its final
   chat message — observed twice, against two different repositories, each

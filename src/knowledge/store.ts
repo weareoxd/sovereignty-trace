@@ -2,9 +2,9 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { packageRoot } from "../paths.js";
-import { policyDocumentSchema } from "./policy-schema.js";
+import { policyDocumentSchema, type PolicyDocument } from "./policy-schema.js";
 import { renderPolicy } from "./policy-render.js";
-import { providerEntrySchema } from "./provider-schema.js";
+import { providerEntrySchema, type ProviderEntry } from "./provider-schema.js";
 import { renderProvider } from "./provider-render.js";
 
 /**
@@ -23,6 +23,21 @@ export interface KnowledgeDoc {
   id: string;
   title: string;
   content: string;
+}
+
+/**
+ * A provider record kept in both forms: the rendered prose a reader sees, and
+ * the validated entry it was rendered from. The assessment pipeline reads
+ * residency off `entry` rather than parsing it back out of `content` — the
+ * prose is for people, the entry is for code.
+ */
+export interface ProviderDoc extends KnowledgeDoc {
+  entry: ProviderEntry;
+}
+
+/** A policy record kept in both forms, for the same reason as {@link ProviderDoc}. */
+export interface PolicyDoc extends KnowledgeDoc {
+  document: PolicyDocument;
 }
 
 export async function loadKnowledgeDir(dirName: string): Promise<KnowledgeDoc[]> {
@@ -50,10 +65,10 @@ export async function loadKnowledgeDir(dirName: string): Promise<KnowledgeDoc[]>
 
 /**
  * Loads the structured provider entries (providers/*.yaml), validates each
- * against {@link providerEntrySchema}, and renders it to the same
- * {id, title, content} shape sg_get_provider has always returned — see
- * ./provider-render.ts. `schema.yaml` documents the format and is not
- * itself a provider entry, same treatment as README.md in loadKnowledgeDir.
+ * against {@link providerEntrySchema}, and keeps both the validated entry and
+ * its rendered prose (see ./provider-render.ts). `schema.yaml` documents the
+ * format and is not itself a provider entry, same treatment as README.md in
+ * loadKnowledgeDir.
  *
  * A file's `id` field, not its filename, is the record id — but the two are
  * required to match so a copy-paste or rename mistake fails loudly instead
@@ -63,11 +78,11 @@ export async function loadKnowledgeDir(dirName: string): Promise<KnowledgeDoc[]>
  * to one organization can be grouped separately from the general registry
  * while still loading as ordinary provider records.
  */
-export async function loadProviderRecords(dirName: string): Promise<KnowledgeDoc[]> {
+export async function loadProviderRecords(dirName: string): Promise<ProviderDoc[]> {
   const dirPath = join(packageRoot, dirName);
   const relativePaths = await listYamlFilesRecursive(dirPath);
 
-  const docs: KnowledgeDoc[] = [];
+  const docs: ProviderDoc[] = [];
   for (const relativePath of relativePaths) {
     const raw = await readFile(join(dirPath, relativePath), "utf8");
     const parsed = providerEntrySchema.safeParse(parseYaml(raw));
@@ -82,7 +97,12 @@ export async function loadProviderRecords(dirName: string): Promise<KnowledgeDoc
       );
     }
 
-    docs.push({ id: parsed.data.id, title: parsed.data.name, content: renderProvider(parsed.data) });
+    docs.push({
+      id: parsed.data.id,
+      title: parsed.data.name,
+      content: renderProvider(parsed.data),
+      entry: parsed.data,
+    });
   }
 
   docs.sort((a, b) => a.id.localeCompare(b.id));
@@ -91,17 +111,17 @@ export async function loadProviderRecords(dirName: string): Promise<KnowledgeDoc
 
 /**
  * Loads the structured policy documents (policies/*.yaml), validates each
- * against {@link policyDocumentSchema}, and renders it to the same
- * {id, title, content} shape sg_get_policy has always returned — see
- * ./policy-render.ts. Mirrors {@link loadProviderRecords} exactly, including
+ * against {@link policyDocumentSchema}, and keeps both the validated document
+ * and its rendered prose (see ./policy-render.ts). Mirrors
+ * {@link loadProviderRecords} exactly, including
  * the id-matches-filename requirement and the `schema.yaml` /
  * subdirectory-recursion behavior of {@link listYamlFilesRecursive}.
  */
-export async function loadPolicyRecords(dirName: string): Promise<KnowledgeDoc[]> {
+export async function loadPolicyRecords(dirName: string): Promise<PolicyDoc[]> {
   const dirPath = join(packageRoot, dirName);
   const relativePaths = await listYamlFilesRecursive(dirPath);
 
-  const docs: KnowledgeDoc[] = [];
+  const docs: PolicyDoc[] = [];
   for (const relativePath of relativePaths) {
     const raw = await readFile(join(dirPath, relativePath), "utf8");
     const parsed = policyDocumentSchema.safeParse(parseYaml(raw));
@@ -116,7 +136,12 @@ export async function loadPolicyRecords(dirName: string): Promise<KnowledgeDoc[]
       );
     }
 
-    docs.push({ id: parsed.data.id, title: parsed.data.title, content: renderPolicy(parsed.data) });
+    docs.push({
+      id: parsed.data.id,
+      title: parsed.data.title,
+      content: renderPolicy(parsed.data),
+      document: parsed.data,
+    });
   }
 
   docs.sort((a, b) => a.id.localeCompare(b.id));

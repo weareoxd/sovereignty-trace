@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-/** Largest line range `sg_cite_evidence` will return in one call. */
+/** Largest line range a single citation will quote. */
 export const MAX_EVIDENCE_LINES = 40;
 
 export interface EvidenceSlice {
@@ -31,14 +31,17 @@ export function sliceLines(contents: string, start: number, end: number): Eviden
 }
 
 /**
- * Mints the handle `sg_cite_evidence` returns and validation later re-derives.
+ * A stable key for one exact file, line range, and the text at it.
  *
- * It is a hash of the file path, the line range, and the exact text at that
- * range, so it can only be produced by something that has actually read those
- * lines. That is the whole point: a citation carrying a handle that re-derives
- * is proof the agent read the file, rather than a path it typed from memory.
- * No secret is involved, and none is needed, since reproducing a handle
- * requires the file content it commits to.
+ * Two citations of the same lines produce the same key, and any edit to those
+ * lines produces a different one, which is what makes it useful for spotting
+ * duplicate citations and for telling whether a report still matches the
+ * revision it was written against.
+ *
+ * It no longer verifies anything. It used to: the agent wrote the snippet from
+ * memory and a matching handle was the evidence it had really read the file.
+ * ./hydrate-evidence.ts reads the text out of the repository directly now, so
+ * there is no agent-written snippet left to check.
  */
 export function mintEvidenceHandle(file: string, slice: EvidenceSlice): string {
   const digest = createHash("sha256")

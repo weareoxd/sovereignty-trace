@@ -1,0 +1,68 @@
+id: bcgov-api-gateway
+name: BC Government API Gateway (API Services Portal)
+status: UNVERIFIED
+description: >
+  BC Government's shared API gateway and developer portal, built on Kong.
+  Teams publish services to it and consumers call them through a
+  *.api.gov.bc.ca host. It handles routing, API key and credential issuing,
+  rate limiting and request authentication in front of an application.
+  Configuration is published with the gwa CLI as Kong service/route/plugin
+  documents.
+
+access_paths:
+  - key: default
+    label: API Services Portal
+    signatures:
+      domains:
+        - "gw-*.api.gov.bc.ca"
+        - "gw-*.dev.api.gov.bc.ca"
+        - "gw-*.test.api.gov.bc.ca"
+        - "api.gov.bc.ca/manager"
+      env_vars: [GWA_ACCT, GWA_CLIENT_ID, GWA_CLIENT_SECRET]
+    data_residency:
+      customer_configurable: false
+      configured_region_derivable_from_repository: false
+      configured_region_reason: >
+        A *.api.gov.bc.ca host identifies the shared government gateway, but
+        the sources used for this entry do not establish where that gateway
+        runs. The application behind it is a separate question with its own
+        evidence.
+      storage_regions:
+        status: unknown
+        reason: >
+          Not established from the sources used for this entry. A gateway
+          is primarily a transit point, but credential and rate-limit state
+          does persist in it and its location is not documented here.
+      processing_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+      support_access_regions:
+        status: unknown
+        reason: Not established from the sources used for this entry.
+    notes: >
+      Requests traversing the gateway carry whatever the caller sent,
+      including request bodies. API keys and consumer credentials are held
+      by the gateway itself.
+
+what_to_look_for:
+  - "Not every api.gov.bc.ca host is this record. Named common services published on that domain have their own records and take precedence: ches.api.gov.bc.ca is bcgov-ches, cdogs.api.gov.bc.ca is bcgov-cdogs, geocoder.api.gov.bc.ca is bcgov-address-geocoder. Use this record for the gateway a team publishes its own service behind, typically a gw-*.api.gov.bc.ca host."
+  - "Kong in a BC Government repository is usually this shared service, not a self-hosted Kong. The tell is the gwa CLI (bcgov/gwa-cli), `gwa publish-gateway`, a gw-*.api.gov.bc.ca host, or a Kong config generated for publication rather than a Kong deployment manifest."
+  - "A Kong admin URL such as http://kong:8001 is a local development container, not this service. Report that as self-hosted and look for the published gateway host separately."
+  - "Kong Inc.'s commercial SaaS (Kong Konnect, *.konghq.com) is a different destination entirely and is not covered by this record."
+
+notes: >
+  This record covers the BC Government-operated gateway. It does not assert
+  anything about Kong Inc. as a vendor, and no residency claim is made for
+  the gateway's own infrastructure.
+
+headquarters_country: CA
+legal_entities:
+  - name: Government of British Columbia
+    role: contracting_entity
+    jurisdiction: CA
+
+metadata:
+  last_verified: "2026-08-31"
+evidence:
+  - url: https://github.com/bcgov/gwa-cli
+    checked: "2026-08-31"

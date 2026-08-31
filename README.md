@@ -5,12 +5,18 @@ repositories, using an existing coding agent to do the actual investigation
 instead of a bespoke static-analysis engine.
 
 It launches and controls a coding agent (initially Claude Code, via the
-Claude Agent SDK) against a repository, gives it a fixed assessment
-methodology, and lets it query trusted provider/policy reference material
-on demand as it investigates. Its output must be a structured,
-evidence-backed assessment that's then validated — including that every
-provider/policy record it cites actually exists — before being turned into
-a report.
+Claude Agent SDK) against a repository and gives it a fixed assessment
+methodology, along with the policy text and the list of provider records it
+will need.
+
+The agent reports observations: what moves data where, what kind of data,
+which provider record applies, and where in the repository each claim can be
+checked. Everything derived from those observations is computed afterwards in
+code — the quoted evidence, the destination jurisdictions, the risk levels.
+The agent does not write a score.
+
+That split is the point. When the agent filled in every field itself, five
+runs against the same commit produced 0, 4, 1, 5 and 4 high-risk findings.
 
 See [`docs/architecture.md`](./docs/architecture.md) for the full design
 rationale and pipeline.
@@ -55,7 +61,7 @@ Options:
 | `--json <file>` | Also write the raw structured assessment as JSON |
 | `--html [file]` | Also write an HTML report and open it automatically once the assessment completes. If `file` is omitted, it's written to `./output/` (gitignored). |
 | `--no-open` | With `--html`, write the HTML report but don't open it |
-| `--max-repair-rounds <n>` | How many times to hand unverifiable evidence citations back to the agent to correct (default 2; `0` disables) |
+| `--max-retries <n>` | How many times to ask again when the agent's answer doesn't match the schema (default 1; `0` disables) |
 | `-q, --quiet` | Suppress progress output |
 
 Requires Claude Code SDK authentication to be configured in your
@@ -78,30 +84,42 @@ if (validation.assessment) {
 }
 ```
 
-### Evidence verification
+### What the agent decides, and what code decides
 
-Every `evidence[]` entry a finding cites is checked against the repository
-after the session: the file must exist, and the `snippet` must actually appear
-in it. A citation the agent produced through `sg_cite_evidence` also carries an
-`evidenceId`, which only re-derives from the real text at the cited lines.
+The agent makes four judgments per finding: that it is a finding at all, which
+provider record applies, how the data is classified, and whether the code path
+is the active one. Plus the prose.
 
-Citations that fail are handed back to the same session to correct, up to
-`--max-repair-rounds` times. Anything still unverified is marked on the
-specific evidence line and finding in the report, rather than discrediting the
-whole assessment. Findings are never dropped for a bad citation: a fabricated
-reference does not make the finding wrong, so the report flags it and leaves
-the judgement to a reader.
+Code does the rest:
 
-The two agent runtimes reach that point differently. Claude Code constrains its
-final answer with `outputFormat: json_schema`, so a malformed document can't be
-returned in the first place, and `--max-repair-rounds` resumes the session to
-fix citations. swival has neither: no schema-constrained output, and
-`agentCapabilities.loadSession: false`, so a session can't be resumed after it
-ends. Instead `reviewUntilAcceptable` in
-[swival.ts](src/agents/swival.ts) reviews the answer against the same schema and
-evidence rules while the session is still open, and prompts for a correction
-until it passes. That is what keeps a null in an optional field, or a
-hallucinated citation, from ending the run.
+- **Evidence.** The agent reports a file and a line range; the quoted text is
+  read out of the repository. A fabricated quote is not expressible. A path
+  that doesn't exist is dropped, and a finding whose citations were all dropped
+  goes with them.
+- **Jurisdiction.** Read off the provider record the agent named, never
+  asserted by the agent.
+- **Risk.** A pure function of the classification, the residency, and whether
+  the path is active. The rule lives in
+  [risk.ts](src/assessment/risk.ts) and every row of it has a test.
+- **Coverage.** All ten component categories and all six policy points are
+  enumerated and appear in every report, answered or not.
+
+The provider id is an enum built from the record filenames, and the list is in
+the agent's instructions. Asking for it as free text is what used to produce
+`ches` for a record named `bcgov-ches`.
+
+### Runtime differences
+
+Claude Code constrains its final answer with `outputFormat: json_schema`, so a
+malformed document can't be returned in the first place. swival has neither
+that nor `agentCapabilities.loadSession`, so a session can't be resumed after
+it ends. Instead `reviewUntilAcceptable` in [swival.ts](src/agents/swival.ts)
+checks the answer against the same schema while the session is still open and
+prompts for a correction until it passes.
+
+Sampling is pinned to temperature 0 with a fixed seed on swival. The Claude
+Agent SDK exposes no temperature, top-p or seed option, so that runtime runs at
+the provider default.
 
 ## Development
 
@@ -115,23 +133,26 @@ npm run build       # tsconfig.build.json, which excludes *.test.ts from dist/
 
 ```
 src/
-  agents/         CodingAgent interface + adapters (Claude Code implemented; Codex/Copilot placeholders)
-    sg-tools.ts   exposes SG knowledge to Claude Code as MCP tools (sg_search_providers, ...)
-    sg-repo-tool-defs.ts  sg_cite_evidence: reads a line range and mints its citation handle
-  assessment/     methodology (instructions-only), structured assessment schema, validation
-    validation.ts       evidence/provider/policy checking, per-finding taint
+  agents/         CodingAgent interface + adapters (Claude Code and swival; Codex/Copilot placeholders)
+  assessment/     the instructions given to the agent, and everything computed from its answer
+    schema.ts           two shapes: the draft the agent returns, and the finished assessment
+    methodology.ts      builds the brief: role, methodology, provider index, policy text
+    hydrate-evidence.ts reads the cited line ranges out of the repository
+    residency.ts        reads jurisdiction off the provider record the agent named
+    risk.ts             the scoring rule, as a pure function
+    assemble.ts         draft + knowledge base -> finished assessment
+    validation.ts       does the draft parse, and was the ground covered
     review.ts           accept/retry gate applied to an answer before a session ends
-    evidence-handle.ts  mints and re-derives the sg_cite_evidence handle
+    evidence-handle.ts  stable citation key for a file and line range
     nearest-path.ts     suggests the file a bad citation most likely meant
-    repair.ts           builds the follow-up prompt for an evidence repair round
-  knowledge/      read-only SG knowledge API: searchProviders/getProvider, searchPolicies/getPolicy, ...
+  knowledge/      read-only SG knowledge API over providers/ and policies/
   cli.ts          CLI entrypoint
   prompts.ts      loads prompts/ (role + methodology instructions)
   report.ts       Markdown report rendering
-  run-assessment.ts  ties an agent, the methodology, and validation together
+  run-assessment.ts  ties an agent, the methodology, and the derivation together
 
-providers/       trusted reference material on cloud/AI provider data residency, queried on demand
-policies/        trusted reference material on BC Government data-residency policy, queried on demand
+providers/       reference material on cloud/AI provider data residency; the risk score reads this
+policies/        reference material on BC Government data-residency policy; inlined into every session
 prompts/         the assessment methodology and role instructions given to the agent
 examples/        example runs
 docs/            architecture and design notes
@@ -142,11 +163,9 @@ docs/            architecture and design notes
 - No custom parsers, taint tracking, sink signatures, or Terraform/IaC
   parsing. The coding agent reads and reasons about the repository the way
   an engineer would.
-- No provider-domain matching engine. Provider data-residency
-  characteristics live in [`providers/`](./providers/) as reference
-  material the agent queries on demand (via `sg_search_providers` /
-  `sg_get_provider`), not as code that pattern-matches domains, and not as
-  content preloaded into every session's opening instructions.
+- No provider-domain matching engine. The agent names the record that applies,
+  from a list it is shown; code does not try to turn a vendor string into a
+  record id. What code does with the record is read its residency fields.
 - No legal or compliance determination. Assessments are technical,
   evidence-backed findings meant to help a human reviewer decide where to
   look closer — see the caveats in [`policies/README.md`](./policies/README.md).

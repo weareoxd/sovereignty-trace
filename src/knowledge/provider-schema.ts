@@ -3,11 +3,13 @@ import { z } from "zod";
 /**
  * Structured shape for a provider entry (providers/*.yaml). This is the
  * source of truth an entry's author fills in; src/knowledge/provider-render.ts
- * turns a validated entry into the prose text that sg_get_provider actually
- * returns. Keeping the two apart means every entry renders in a consistent
- * shape and can't silently omit a field the assessment methodology depends
- * on (see prompts/methodology.md's risk rubric, which needs storage vs.
- * processing vs. support-access regions kept distinct).
+ * turns a validated entry into the prose a person reads.
+ *
+ * `data_residency` is what the assessment's risk score is computed from (see
+ * ../assessment/residency.ts, which reads storage_regions and
+ * processing_regions off this and nothing else). An entry that leaves them
+ * absent reports as unknown residency, which for personal data on an active
+ * path scores High — so an unfilled field is a loud answer here, not a quiet one.
  *
  * Absent means unknown. Do not fill in a value, an evidence URL, or a
  * last_verified date that hasn't actually been checked — see

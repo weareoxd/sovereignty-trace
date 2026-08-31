@@ -1,69 +1,26 @@
 import { z } from "zod";
+import { listPolicyRules, listProviderIds } from "../knowledge/index.js";
+import { NO_MATCHING_RECORD, SELF_HOSTED } from "./residency.js";
 
 /**
- * Structured sovereignty assessment schema. This is the contract between
- * Sovereignty Graph and the coding agent: the agent's final answer must
- * conform to this shape, every finding must cite the repository evidence
- * it is based on, and every provider/policy claim must cite the SG
- * knowledge record (see ../knowledge/) it was grounded in.
+ * The two shapes of a sovereignty assessment.
+ *
+ * `AssessmentDraft` is what the coding agent returns: observations only. What
+ * it found, what the code does, which knowledge record applies, what kind of
+ * data is involved, and where in the repository each claim can be checked.
+ *
+ * `SovereigntyAssessment` is the finished document. Everything the draft
+ * doesn't carry — the snippets, the jurisdictions, the risk scores — is
+ * computed from the draft and the knowledge base by ../run-assessment.ts.
+ *
+ * The split exists because the agent used to fill in every field of the second
+ * shape directly, including the scores, and five runs of the same repository
+ * disagreed with each other. Anything that is a lookup or a calculation is on
+ * the code side of this line.
  */
-
-export const EvidenceSchema = z.object({
-  file: z.string().describe("Repository-relative file path supporting this finding."),
-  lines: z
-    .string()
-    .optional()
-    .describe('Line number or range within the file, e.g. "12-18".'),
-  snippet: z
-    .string()
-    .describe("Short excerpt (a few lines) substantiating the finding."),
-  evidenceId: z
-    .string()
-    .optional()
-    .describe(
-      "The `evidenceId` returned by sg_cite_evidence for this exact file and line range, copied verbatim. Include it whenever the citation came from that tool: it is what proves the quoted text was read from the repository rather than recalled.",
-    ),
-  note: z.string().optional().describe("Why this evidence supports the finding."),
-});
-export type Evidence = z.infer<typeof EvidenceSchema>;
 
 export const RiskLevelSchema = z.enum(["low", "medium", "high", "unknown"]);
 export type RiskLevel = z.infer<typeof RiskLevelSchema>;
-
-export const ProviderReferenceSchema = z.object({
-  id: z
-    .string()
-    .describe(
-      'Sovereignty Graph provider record id (from sg_search_providers / sg_get_provider), e.g. "aws". Required even when `available` is false — record the id you looked up.',
-    ),
-  available: z
-    .boolean()
-    .describe(
-      "Whether sg_get_provider returned a record for this id — nothing else. False means SG has no provider knowledge for this vendor; say so in the finding's notes rather than guessing its residency. Do not set this to false to express that the record doesn't really apply to this instance (e.g. a vendor SDK used against a self-hosted endpoint that isn't actually that vendor) — if sg_get_provider found a record, this is true, and that nuance belongs in the finding's notes instead.",
-    ),
-});
-export type ProviderReference = z.infer<typeof ProviderReferenceSchema>;
-
-export const PolicyReferenceSchema = z.object({
-  id: z
-    .string()
-    .describe(
-      'Sovereignty Graph policy record id (from sg_search_policies / sg_get_policy), e.g. "bc-foippa-overview". Do not include a "#section" suffix here — use `section` instead.',
-    ),
-  section: z
-    .string()
-    .optional()
-    .describe(
-      'Anchor/section within the policy record this addresses, e.g. "personal-information-outside-canada", if the record documents one.',
-    ),
-  sourceId: z
-    .string()
-    .optional()
-    .describe(
-      "Id of a separate underlying source document retrieved via sg_get_policy_source, if the policy record referenced one.",
-    ),
-});
-export type PolicyReference = z.infer<typeof PolicyReferenceSchema>;
 
 export const ComponentCategorySchema = z.enum([
   "data_storage",
@@ -79,40 +36,30 @@ export const ComponentCategorySchema = z.enum([
 ]);
 export type ComponentCategory = z.infer<typeof ComponentCategorySchema>;
 
-export const DataMovementFindingSchema = z.object({
-  name: z.string().describe('Short label for this finding, e.g. "Application logs shipped to Datadog".'),
-  description: z.string().describe("What the code does, in plain language."),
-  provider: z
-    .string()
-    .optional()
-    .describe('Vendor or service name involved, e.g. "AWS S3", "OpenAI API", "self-hosted".'),
-  providerReference: ProviderReferenceSchema.optional().describe(
-    "The SG provider knowledge lookup grounding this finding's jurisdiction claim. Omit only when the finding involves no third-party provider (e.g. purely local/in-process behavior).",
-  ),
-  dataCategories: z
-    .array(z.string())
-    .default([])
-    .describe('Types of data involved, e.g. "personal information", "credentials", "application logs".'),
-  destinationJurisdiction: z
-    .string()
-    .optional()
-    .describe('Best-effort jurisdiction data is sent to or stored in, e.g. "Canada", "United States", "unknown".'),
-  crossesBorder: z
-    .boolean()
-    .optional()
-    .describe("Whether this data movement is understood to leave Canada. Omit if not determinable from the repository."),
-  riskLevel: RiskLevelSchema,
-  evidence: z.array(EvidenceSchema).min(1).describe("At least one piece of repository evidence is required."),
-  notes: z.string().optional(),
-});
-export type DataMovementFinding = z.infer<typeof DataMovementFindingSchema>;
+export const COMPONENT_CATEGORIES = ComponentCategorySchema.options;
 
-export const ComponentAssessmentSchema = z.object({
-  category: ComponentCategorySchema,
-  summary: z.string().describe("Summary of what was found in this category, even if nothing notable."),
-  findings: z.array(DataMovementFindingSchema).default([]),
-});
-export type ComponentAssessment = z.infer<typeof ComponentAssessmentSchema>;
+/**
+ * How the data in a finding is classified. The first three come from the
+ * policy records themselves: FOIPPA turns on "personal information", and the
+ * cloud policy turns on the Protected B / Protected C security classifications.
+ * The last four exist because assessments kept reporting things the policies
+ * don't name — API keys, log payloads — and those need somewhere honest to go.
+ *
+ * This is what ./risk.ts scores from, which is why it is an enum. The
+ * free-text `dataCategories` list stays alongside it for the prose: across five
+ * runs that field produced 135 distinct labels for one repository, so it can
+ * describe a finding but it cannot decide one.
+ */
+export const DataClassificationSchema = z.enum([
+  "personal_information",
+  "protected_b",
+  "protected_c",
+  "credentials_or_secrets",
+  "operational",
+  "none_identified",
+  "unclassified",
+]);
+export type DataClassification = z.infer<typeof DataClassificationSchema>;
 
 export const PolicyAlignmentStatusSchema = z.enum([
   "aligned",
@@ -123,44 +70,215 @@ export const PolicyAlignmentStatusSchema = z.enum([
 ]);
 export type PolicyAlignmentStatus = z.infer<typeof PolicyAlignmentStatusSchema>;
 
-export const PolicyAlignmentSchema = z.object({
-  policyReference: PolicyReferenceSchema.describe(
-    "The SG policy knowledge lookup this alignment finding is based on.",
+/* -------------------------------------------------------------------------- */
+/* What the agent returns                                                     */
+/* -------------------------------------------------------------------------- */
+
+export const DraftEvidenceSchema = z.object({
+  file: z
+    .string()
+    .describe("Repository-relative path to the file you read, e.g. \"src/mail/send.ts\"."),
+  lines: z
+    .string()
+    .describe('Line number or inclusive range within that file, e.g. "42" or "12-18".'),
+  note: z.string().optional().describe("Why this location supports the finding."),
+});
+export type DraftEvidence = z.infer<typeof DraftEvidenceSchema>;
+
+export const DraftFindingSchema = z.object({
+  name: z.string().describe('Short label, e.g. "Application logs shipped to Datadog".'),
+  description: z.string().describe("What the code does, in plain language."),
+  providerId: z
+    .string()
+    .describe(
+      "Which Sovereignty Graph provider record this involves. Pick from the provider index in your instructions.",
+    ),
+  classification: DataClassificationSchema.describe(
+    "How the data moving through here is classified. This determines the finding's risk level, so pick the tier the evidence supports rather than the safest-sounding one.",
   ),
+  dataCategories: z
+    .array(z.string())
+    .default([])
+    .describe(
+      'Plain-language description of the data involved, for the report prose, e.g. "recipient email addresses", "delivery status". Does not affect the risk level.',
+    ),
+  activePath: z
+    .boolean()
+    .describe(
+      "True if this is the default or currently-active configuration. False if it is an alternate adapter behind a flag, or documented as not enabled. This lowers the risk tier, so only set it false when the repository shows the path is not in use.",
+    ),
+  evidence: z
+    .array(DraftEvidenceSchema)
+    .min(1)
+    .describe("Where in the repository this finding can be checked. At least one location."),
+  notes: z
+    .string()
+    .optional()
+    .describe(
+      "Caveats. This is where a record that doesn't quite apply belongs — a vendor SDK pointed at a self-hosted endpoint, for example.",
+    ),
+});
+export type DraftFinding = z.infer<typeof DraftFindingSchema>;
+
+export const DraftComponentSchema = z.object({
+  category: ComponentCategorySchema,
+  summary: z.string().describe("What you found in this category. Say so plainly if nothing."),
+  findings: z.array(DraftFindingSchema).default([]),
+});
+
+export const DraftPolicyAlignmentSchema = z.object({
+  ruleId: z
+    .string()
+    .describe("Which policy point this answers. Pick from the policy rules in your instructions."),
   status: PolicyAlignmentStatusSchema,
   explanation: z.string(),
-  evidence: z.array(EvidenceSchema).default([]),
+});
+
+export const AssessmentDraftSchema = z.object({
+  summary: z.string().describe("Plain-language summary of the repository's data-sovereignty posture."),
+  components: z
+    .array(DraftComponentSchema)
+    .describe("One entry per component category. Answer all of them, including the ones with nothing to report."),
+  policyAlignment: z
+    .array(DraftPolicyAlignmentSchema)
+    .default([])
+    .describe("One entry per policy rule. Answer all of them."),
+  openQuestions: z
+    .array(z.string())
+    .default([])
+    .describe("What you could not resolve by reading the repository."),
+  limitations: z
+    .string()
+    .optional()
+    .describe("What this assessment could not verify, beyond the standing limits of static inspection."),
+});
+export type AssessmentDraft = z.infer<typeof AssessmentDraftSchema>;
+
+/**
+ * The draft schema with `providerId` and `ruleId` narrowed to the ids that
+ * actually exist on disk, as JSON Schema for the agent's structured output.
+ *
+ * Built at runtime rather than hardcoded because the enum members are the
+ * knowledge base's filenames. Showing the agent the list is the whole point:
+ * assessments used to invent a plausible slug (`ches`) that no record matched,
+ * because they were asked for an id they had never been shown.
+ */
+export async function assessmentDraftJsonSchema(): Promise<Record<string, unknown>> {
+  const schema = await buildNarrowedDraftSchema();
+  return z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>;
+}
+
+/**
+ * The same narrowed schema as a Zod object, for checking an answer while the
+ * agent can still correct it (see ./review.ts). Runtimes that enforce the JSON
+ * Schema natively never need this; swival does not, so it gates on this instead.
+ */
+export async function buildNarrowedDraftSchema() {
+  // Sentinels first so the tuple type carries a literal head, which is what
+  // z.enum needs to accept a runtime-built member list.
+  const providerMembers: [string, ...string[]] = [
+    NO_MATCHING_RECORD,
+    SELF_HOSTED,
+    ...(await listProviderIds()),
+  ];
+  const rules = await listPolicyRules();
+  const firstRule = rules[0];
+  if (!firstRule) throw new Error("No policy rules found in policies/; cannot build the draft schema.");
+  const ruleMembers: [string, ...string[]] = [firstRule.id, ...rules.slice(1).map((rule) => rule.id)];
+
+  return AssessmentDraftSchema.extend({
+    components: z.array(
+      DraftComponentSchema.extend({
+        findings: z
+          .array(
+            DraftFindingSchema.extend({
+              providerId: z
+                .enum(providerMembers)
+                .describe(
+                  `Which provider record this involves. "${NO_MATCHING_RECORD}" if the registry has no record for the vendor; "${SELF_HOSTED}" if this runs inside the deployment's own infrastructure and is not a third party.`,
+                ),
+            }),
+          )
+          .default([]),
+      }),
+    ),
+    policyAlignment: z
+      .array(
+        DraftPolicyAlignmentSchema.extend({
+          ruleId: z.enum(ruleMembers),
+        }),
+      )
+      .default([]),
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* The finished document                                                      */
+/* -------------------------------------------------------------------------- */
+
+export const EvidenceSchema = z.object({
+  file: z.string(),
+  lines: z.string().optional(),
+  snippet: z.string(),
+  /** Stable key for this exact file and range, minted by ./evidence-handle.ts. */
+  evidenceId: z.string().optional(),
+  note: z.string().optional(),
+});
+export type Evidence = z.infer<typeof EvidenceSchema>;
+
+export const ProviderReferenceSchema = z.object({
+  id: z.string(),
+  /** Whether a record for this id exists. Read off the registry, not asserted. */
+  available: z.boolean(),
+});
+export type ProviderReference = z.infer<typeof ProviderReferenceSchema>;
+
+export const PolicyReferenceSchema = z.object({
+  /** Policy document id, e.g. "bc-foippa-overview". */
+  id: z.string(),
+  /** Citable-section id within that document. */
+  section: z.string(),
+  title: z.string(),
+});
+export type PolicyReference = z.infer<typeof PolicyReferenceSchema>;
+
+export const DataMovementFindingSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  provider: z.string().describe("Display name of the provider record, or how it was categorized."),
+  providerReference: ProviderReferenceSchema,
+  classification: DataClassificationSchema,
+  dataCategories: z.array(z.string()).default([]),
+  activePath: z.boolean(),
+  destinationJurisdiction: z.string(),
+  crossesBorder: z.boolean().optional(),
+  riskLevel: RiskLevelSchema,
+  evidence: z.array(EvidenceSchema),
+  notes: z.string().optional(),
+});
+export type DataMovementFinding = z.infer<typeof DataMovementFindingSchema>;
+
+export const ComponentAssessmentSchema = z.object({
+  category: ComponentCategorySchema,
+  summary: z.string(),
+  findings: z.array(DataMovementFindingSchema).default([]),
+});
+export type ComponentAssessment = z.infer<typeof ComponentAssessmentSchema>;
+
+export const PolicyAlignmentSchema = z.object({
+  policyReference: PolicyReferenceSchema,
+  status: PolicyAlignmentStatusSchema,
+  explanation: z.string(),
 });
 export type PolicyAlignment = z.infer<typeof PolicyAlignmentSchema>;
 
 export const SovereigntyAssessmentSchema = z.object({
-  schemaVersion: z.literal("1.0"),
-  summary: z
-    .string()
-    .describe("Plain-language summary of the repository's data-sovereignty posture."),
+  schemaVersion: z.literal("2.0"),
+  summary: z.string(),
   overallRisk: RiskLevelSchema,
-  components: z
-    .array(ComponentAssessmentSchema)
-    .describe("One entry per investigated category, covering all ComponentCategory values that apply."),
-  policyAlignment: z
-    .array(PolicyAlignmentSchema)
-    .default([])
-    .describe("How the findings above line up against the SG policy knowledge records retrieved during this assessment."),
-  openQuestions: z
-    .array(z.string())
-    .default([])
-    .describe("Questions the agent could not resolve from static repository inspection alone."),
-  limitations: z
-    .string()
-    .optional()
-    .describe("What this assessment could not verify (e.g. runtime behavior, third-party subprocessors)."),
+  components: z.array(ComponentAssessmentSchema),
+  policyAlignment: z.array(PolicyAlignmentSchema).default([]),
+  openQuestions: z.array(z.string()).default([]),
+  limitations: z.string().optional(),
 });
 export type SovereigntyAssessment = z.infer<typeof SovereigntyAssessmentSchema>;
-
-/** JSON Schema form of {@link SovereigntyAssessmentSchema}, for CodingAgent outputSchema. */
-export function sovereigntyAssessmentJsonSchema(): Record<string, unknown> {
-  return z.toJSONSchema(SovereigntyAssessmentSchema, { target: "draft-7" }) as Record<
-    string,
-    unknown
-  >;
-}

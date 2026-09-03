@@ -21,6 +21,7 @@ access_paths:
         region/location fields in Terraform (the google provider),
         Deployment Manager, gcloud CLI scripts, or passed to a GCP client
         library settle this.
+      canadian_regions: [northamerica-northeast1, northamerica-northeast2]
     notes: >
       GCP is organized into geographic regions (e.g. northamerica-northeast1
       in Montreal, northamerica-northeast2 in Toronto), each with multiple

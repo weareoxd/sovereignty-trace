@@ -24,7 +24,7 @@ export type EvidenceDropReason =
   | "lines_out_of_range";
 
 export interface DroppedEvidence {
-  /** Location within the draft, e.g. `components[5].findings[0].evidence[2]`. */
+  /** Location within the draft, e.g. `findings[0].evidence[2]`. */
   path: string;
   file: string;
   lines: string;

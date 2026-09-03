@@ -105,6 +105,10 @@ function renderFinding(
   if (finding.dataCategories.length > 0) {
     meta.push(`<li><strong>Data categories:</strong> ${escapeHtml(finding.dataCategories.join(", "))}</li>`);
   }
+  if (finding.alsoRelevantTo.length > 0) {
+    const labels = finding.alsoRelevantTo.map((c) => CATEGORY_LABEL[c] ?? c).join(", ");
+    meta.push(`<li><strong>Also relevant to:</strong> ${escapeHtml(labels)}</li>`);
+  }
   if (finding.notes) meta.push(`<li><strong>Notes:</strong> ${escapeHtml(finding.notes)}</li>`);
   parts.push(`<ul class="finding-meta">${meta.join("")}</ul>`);
 
@@ -113,6 +117,31 @@ function renderFinding(
 
   parts.push(`</div>`);
   return parts.join("");
+}
+
+/**
+ * Findings filed under another category that named this one too.
+ *
+ * Pointers, not copies. A managed search cluster is both a database and
+ * infrastructure, and it used to be written out under both — as two findings
+ * that could, and did, disagree about how the data was classified. It is one
+ * finding now, reported in full in one place and pointed at from the other.
+ */
+function renderCrossReferences(
+  refs: SovereigntyAssessment["components"][number]["alsoRelevantHere"],
+): string {
+  if (refs.length === 0) return "";
+  const items = refs
+    .map(
+      (ref) =>
+        `<li><span class="badge ${riskClass(ref.riskLevel)}">${
+          RISK_LABEL[ref.riskLevel] ?? ref.riskLevel
+        }</span> ${escapeHtml(ref.name)} — reported under ${escapeHtml(
+          CATEGORY_LABEL[ref.category] ?? ref.category,
+        )}</li>`,
+    )
+    .join("");
+  return `<div class="cross-references"><p class="cross-references-heading">Also relevant here, reported in full elsewhere:</p><ul>${items}</ul></div>`;
 }
 
 /** Renders a sovereignty assessment (and its validation result) as a self-contained HTML report. */
@@ -129,15 +158,17 @@ export function renderHtmlReport(
   // answers, and both need to be visible without crowding the real findings.
   const componentsHtml = assessment.components
     .map((component) => {
-      const empty = component.findings.length === 0;
-      const findingsHtml = empty
-        ? `<p class="empty">No findings in this category.</p>`
-        : component.findings.map(renderFinding).join("");
+      const empty = component.findings.length === 0 && component.alsoRelevantHere.length === 0;
+      const findingsHtml =
+        component.findings.length === 0
+          ? `<p class="empty">No findings in this category.</p>`
+          : component.findings.map(renderFinding).join("");
       return `
         <section class="component${empty ? " muted" : ""}">
           <h3>${escapeHtml(CATEGORY_LABEL[component.category] ?? component.category)}</h3>
           <p class="component-summary">${escapeHtml(component.summary)}</p>
           ${findingsHtml}
+          ${renderCrossReferences(component.alsoRelevantHere)}
         </section>`;
     })
     .join("");
@@ -317,6 +348,10 @@ export function renderHtmlReport(
   ul.evidence { list-style: disc; margin: 0.4rem 0 0.2rem 1.2rem; padding: 0; font-size: 0.92rem; color: var(--muted); }
   ul.evidence li { margin: 0.2rem 0; }
   .badges { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .cross-references { border-top: 1px dashed var(--border); margin-top: 0.9rem; padding-top: 0.7rem; }
+  .cross-references-heading { color: var(--muted); font-size: 0.92rem; margin: 0 0 0.35rem; }
+  .cross-references ul { list-style: none; padding: 0; margin: 0; font-size: 0.92rem; color: var(--muted); }
+  .cross-references li { margin: 0.25rem 0; display: flex; align-items: center; gap: 0.5rem; }
   .muted { opacity: 0.62; }
   .muted h3, .muted .finding-name { font-weight: 500; }
   .validation-list { padding-left: 1.2rem; }

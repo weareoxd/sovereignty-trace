@@ -34,7 +34,7 @@ scores, the jurisdictions, and the snippets it quoted — five runs against the
 same commit produced 0, 4, 1, 5 and 4 high-risk findings, and four of the five
 failed validation.
 
-The agent now makes four judgments per finding, and writes the prose:
+The agent now makes six judgments per finding, and writes the prose:
 
 1. That something is a finding at all.
 2. Which provider record applies, chosen from a list it is shown.
@@ -42,6 +42,9 @@ The agent now makes four judgments per finding, and writes the prose:
    `protected_c`, `credentials_or_secrets`, `operational`, `none_identified`,
    `unclassified`).
 4. Whether the code path is the active one or an alternate.
+5. Which region the repository pins, for a provider that has one.
+6. Which component category the finding is filed under, and which others it
+   is also relevant to.
 
 Code does the rest, in [`src/assessment/`](../src/assessment/):
 
@@ -50,13 +53,18 @@ Code does the rest, in [`src/assessment/`](../src/assessment/):
   fabricated quote is not expressible. A citation that doesn't resolve is
   dropped, and a finding whose citations were all dropped goes with it.
 - `residency.ts` reads `storage_regions` and `processing_regions` off the
-  provider record the agent named.
+  provider record the agent named. A record without them — every
+  customer-configurable cloud, where there is no fixed list to publish — falls
+  back to the region the agent read out of the repository, matched against
+  that record's own `canadian_regions`. The agent reports a region string it
+  saw; code decides what it means.
 - `risk.ts` is the scoring rule, as a pure function of classification,
   residency, and active-vs-alternate. It used to be prose in the methodology
   prompt, applied by feel.
 - `assemble.ts` enumerates all ten component categories and all six policy
   points, so a category the agent skipped reports as unreported rather than
-  vanishing.
+  vanishing. It also files each finding under its category and cross-references
+  it into the others it named.
 - `validation.ts` is what's left to check: does the draft parse, and was the
   ground covered.
 
@@ -197,6 +205,16 @@ replaced had no tier for it — its High tier only covered a *missing* record �
 so the agent picked one by feel, and that is most of where the run-to-run
 spread came from. Treating unknown as milder would score most of the registry
 as safe by default.
+
+**One finding per thing, so one score per thing.** Findings used to be nested
+inside the component categories, which meant a resource belonging to two
+categories had to be reported once under each. The two copies then drifted: a
+BC Parks run described the same OpenSearch cluster as `personal_information`
+under "database" and `operational` under "infrastructure", scoring it High and
+Low in one document. Findings are a flat list now. Each names one primary
+`category` and lists any others in `alsoRelevantTo`, and `assemble.ts`
+cross-references it into those rather than copying it, so the score is
+computed once no matter how many lenses the finding appears under.
 
 **Self-hosted is low.** A cache or database inside the deployment's own
 infrastructure has not moved data across a border. Where the deployment itself

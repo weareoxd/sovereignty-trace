@@ -11,21 +11,17 @@ import { reviewAssessmentOutput } from "./review.js";
 function draft(findingOverrides: Record<string, unknown> = {}, top: Record<string, unknown> = {}) {
   return {
     summary: "Test assessment.",
-    components: [
+    components: [{ category: "authentication_and_identity", summary: "Auth via BC Gov SSO." }],
+    findings: [
       {
+        name: "Keycloak JWT validation",
+        description: "Validates Keycloak-issued JWTs.",
         category: "authentication_and_identity",
-        summary: "Auth via BC Gov SSO.",
-        findings: [
-          {
-            name: "Keycloak JWT validation",
-            description: "Validates Keycloak-issued JWTs.",
-            providerId: "bcgov-sso",
-            classification: "personal_information",
-            activePath: true,
-            evidence: [{ file: "backend/src/auth/auth.jwt-strategy.ts", lines: "1" }],
-            ...findingOverrides,
-          },
-        ],
+        providerId: "bcgov-sso",
+        classification: "personal_information",
+        activePath: true,
+        evidence: [{ file: "backend/src/auth/auth.jwt-strategy.ts", lines: "1" }],
+        ...findingOverrides,
       },
     ],
     policyAlignment: [
@@ -83,6 +79,21 @@ test("accepts the two provider ids that are not records", async () => {
     const verdict = await reviewAssessmentOutput(draft({ providerId }));
     assert.equal(verdict.accepted, true, `${providerId}: ${verdict.feedback}`);
   }
+});
+
+test("rejects a category that is not a component category", async () => {
+  const verdict = await reviewAssessmentOutput(draft({ category: "search_cluster" }));
+
+  assert.equal(verdict.accepted, false);
+  assert.match(verdict.feedback, /category/);
+});
+
+test("accepts a finding that names other categories it is relevant to", async () => {
+  const verdict = await reviewAssessmentOutput(
+    draft({ category: "database", alsoRelevantTo: ["infrastructure"] }),
+  );
+
+  assert.equal(verdict.accepted, true, verdict.feedback);
 });
 
 test("rejects a policy rule id that does not exist", async () => {

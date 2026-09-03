@@ -29,27 +29,30 @@ after(async () => {
   await rm(repositoryPath, { recursive: true, force: true });
 });
 
-function draftCiting(file: string) {
+function draftCiting(file: string, findingOverrides: Record<string, unknown> = {}) {
   return {
     summary: "Test assessment.",
-    components: [
+    components: [{ category: "authentication_and_identity", summary: "Auth via BC Gov SSO." }],
+    findings: [
       {
+        name: "Authentication via BC Government SSO (Keycloak)",
+        description: "Validates Keycloak-issued JWTs.",
         category: "authentication_and_identity",
-        summary: "Auth via BC Gov SSO.",
-        findings: [
-          {
-            name: "Authentication via BC Government SSO (Keycloak)",
-            description: "Validates Keycloak-issued JWTs.",
-            providerId: "bcgov-sso",
-            classification: "personal_information",
-            activePath: true,
-            evidence: [{ file, lines: "1" }],
-          },
-        ],
+        providerId: "bcgov-sso",
+        classification: "personal_information",
+        activePath: true,
+        evidence: [{ file, lines: "1" }],
+        ...findingOverrides,
       },
     ],
     policyAlignment: [],
   };
+}
+
+function categoryOf(outcome: Awaited<ReturnType<typeof runAssessment>>, category: string) {
+  return outcome.validation.assessment?.components.find(
+    (component) => component.category === category,
+  );
 }
 
 function resultWith(structuredOutput: unknown, sessionId = "session-1"): CodingAgentResult {
@@ -86,9 +89,7 @@ test("resolves a good citation out of the repository in one session", async () =
   assert.equal(agent.calls.length, 1);
   assert.equal(outcome.runInfo.repairRounds, 0);
 
-  const finding = outcome.validation.assessment?.components
-    .find((component) => component.category === "authentication_and_identity")
-    ?.findings[0];
+  const finding = categoryOf(outcome, "authentication_and_identity")?.findings[0];
   // The snippet was never in the draft. It comes from the file.
   assert.equal(finding?.evidence[0]?.snippet, REAL_SNIPPET);
   assert.ok(finding?.evidence[0]?.evidenceId);
@@ -113,10 +114,65 @@ test("removes a finding whose every citation was dropped", async () => {
   const outcome = await runAssessment({ agent, repositoryPath });
 
   assert.equal(outcome.validation.droppedFindings.length, 1);
-  const category = outcome.validation.assessment?.components.find(
-    (component) => component.category === "authentication_and_identity",
-  );
-  assert.equal(category?.findings.length, 0);
+  assert.equal(categoryOf(outcome, "authentication_and_identity")?.findings.length, 0);
+});
+
+test("a finding relevant to two categories is reported once and pointed at twice", async () => {
+  // The BC Parks case: one OpenSearch cluster that is both a database and a
+  // piece of infrastructure. It used to be two findings that disagreed about
+  // how the data was classified, and so scored High in one place and Low in
+  // the other.
+  const agent = new StubAgent([
+    resultWith(draftCiting(REAL_FILE, { category: "database", alsoRelevantTo: ["infrastructure"] })),
+  ]);
+
+  const outcome = await runAssessment({ agent, repositoryPath });
+
+  const database = categoryOf(outcome, "database");
+  const infrastructure = categoryOf(outcome, "infrastructure");
+
+  assert.equal(database?.findings.length, 1, "reported in full under its own category");
+  assert.equal(database?.alsoRelevantHere.length, 0);
+
+  assert.equal(infrastructure?.findings.length, 0, "not a second copy under the other category");
+  assert.equal(infrastructure?.alsoRelevantHere.length, 1);
+  assert.equal(infrastructure?.alsoRelevantHere[0]?.category, "database", "points back to the full entry");
+
+  // One finding, so one score — which is the whole point of the cross-reference.
+  assert.equal(infrastructure?.alsoRelevantHere[0]?.riskLevel, database?.findings[0]?.riskLevel);
+});
+
+test("a finding is not cross-referenced into its own category", async () => {
+  const agent = new StubAgent([
+    resultWith(
+      draftCiting(REAL_FILE, { category: "database", alsoRelevantTo: ["database", "infrastructure"] }),
+    ),
+  ]);
+
+  const outcome = await runAssessment({ agent, repositoryPath });
+  const database = categoryOf(outcome, "database");
+
+  assert.equal(database?.findings.length, 1);
+  assert.equal(database?.alsoRelevantHere.length, 0, "it would otherwise point at itself");
+});
+
+test("overall risk counts a multi-category finding once", async () => {
+  const agent = new StubAgent([
+    resultWith(
+      draftCiting(REAL_FILE, {
+        category: "database",
+        alsoRelevantTo: ["infrastructure", "data_storage"],
+        classification: "operational",
+      }),
+    ),
+  ]);
+
+  const outcome = await runAssessment({ agent, repositoryPath });
+  const assessment = outcome.validation.assessment;
+
+  const reported = assessment?.components.flatMap((component) => component.findings) ?? [];
+  assert.equal(reported.length, 1);
+  assert.equal(assessment?.overallRisk, reported[0]?.riskLevel);
 });
 
 test("reports every component category and policy rule, answered or not", async () => {

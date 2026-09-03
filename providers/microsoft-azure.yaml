@@ -25,6 +25,7 @@ access_paths:
         a connection string (Storage, Cosmos DB, SQL Database) settle this —
         often visible in configuration or environment variables even
         without explicit IaC.
+      canadian_regions: [canadacentral, canadaeast]
     notes: >
       Azure is organized into geographic regions, grouped into geographies
       (e.g. "Canada" as a geography containing the canadacentral and

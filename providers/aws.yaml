@@ -23,6 +23,7 @@ access_paths:
         passed to an AWS SDK client constructor settle this. No region set
         means the SDK falls back to an environment or profile default that
         isn't visible from the repository alone.
+      canadian_regions: [ca-central-1, ca-west-1]
     notes: >
       AWS is organized into geographic regions (e.g. ca-central-1 in
       Montreal, us-east-1 in Virginia), each made up of multiple isolated

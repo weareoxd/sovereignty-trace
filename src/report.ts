@@ -113,11 +113,24 @@ export function renderMarkdownReport(
       if (finding.dataCategories.length > 0) {
         lines.push(`  - Data categories: ${finding.dataCategories.join(", ")}`);
       }
+      if (finding.alsoRelevantTo.length > 0) {
+        lines.push(`  - Also relevant to: ${finding.alsoRelevantTo.join(", ")}`);
+      }
       for (const evidence of finding.evidence) {
         const loc = evidence.lines ? `${evidence.file}:${evidence.lines}` : evidence.file;
         lines.push(`  - Evidence: \`${loc}\`${evidence.note ? ` — ${evidence.note}` : ""}`);
       }
       if (finding.notes) lines.push(`  - Notes: ${finding.notes}`);
+    }
+
+    // Pointers, not copies. The finding is written out once, under the
+    // category it belongs to most directly.
+    if (component.alsoRelevantHere.length > 0) {
+      lines.push("");
+      lines.push("Also relevant here, reported in full elsewhere:");
+      for (const ref of component.alsoRelevantHere) {
+        lines.push(`- ${ref.name} (risk: ${ref.riskLevel}) — see ${ref.category}`);
+      }
     }
     lines.push("");
   }

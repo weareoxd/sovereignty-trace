@@ -17,6 +17,16 @@ import { NO_MATCHING_RECORD, SELF_HOSTED } from "./residency.js";
  * shape directly, including the scores, and five runs of the same repository
  * disagreed with each other. Anything that is a lookup or a calculation is on
  * the code side of this line.
+ *
+ * Findings are a flat list, not nested inside the component categories. They
+ * used to be nested, which meant a thing that belongs to two categories — a
+ * managed search cluster is both a database and infrastructure — had to be
+ * reported twice, once under each. The two copies then drifted: one BC Parks
+ * run described the same OpenSearch cluster as `personal_information` under
+ * "database" and `operational` under "infrastructure", scoring it High and Low
+ * in the same document. A finding names one primary category and lists any
+ * others it is relevant to, so one real thing gets one classification and one
+ * score however many lenses it belongs under.
  */
 
 export const RiskLevelSchema = z.enum(["low", "medium", "high", "unknown"]);
@@ -88,6 +98,15 @@ export type DraftEvidence = z.infer<typeof DraftEvidenceSchema>;
 export const DraftFindingSchema = z.object({
   name: z.string().describe('Short label, e.g. "Application logs shipped to Datadog".'),
   description: z.string().describe("What the code does, in plain language."),
+  category: ComponentCategorySchema.describe(
+    "The category this finding belongs under most directly. Report the thing once, here — do not repeat it under every category it touches.",
+  ),
+  alsoRelevantTo: z
+    .array(ComponentCategorySchema)
+    .default([])
+    .describe(
+      'The other categories this same finding is relevant to, if any. A managed search cluster reported under "database" would list "infrastructure" here. It is cross-referenced under those categories rather than repeated, so do not also submit it as a separate finding.',
+    ),
   providerId: z
     .string()
     .describe(
@@ -107,6 +126,12 @@ export const DraftFindingSchema = z.object({
     .describe(
       "True if this is the default or currently-active configuration. False if it is an alternate adapter behind a flag, or documented as not enabled. This lowers the risk tier, so only set it false when the repository shows the path is not in use.",
     ),
+  configuredRegion: z
+    .string()
+    .optional()
+    .describe(
+      'The cloud region this deployment pins, copied exactly as the repository writes it, e.g. "ca-central-1", "canadacentral", "northamerica-northeast1". Set it only when the repository actually shows the region — an IaC region field, a region variable\'s default, a region passed to an SDK client. Omit it when the provider has no region setting, or when the region is supplied at deploy time and is not in the repository. Do not infer one from a bucket name, a company\'s location, or a region string on a non-provider endpoint.',
+    ),
   evidence: z
     .array(DraftEvidenceSchema)
     .min(1)
@@ -120,10 +145,13 @@ export const DraftFindingSchema = z.object({
 });
 export type DraftFinding = z.infer<typeof DraftFindingSchema>;
 
+/**
+ * The per-category prose. Findings live in the draft's flat `findings` list and
+ * are filed under a category from there, so this carries the summary only.
+ */
 export const DraftComponentSchema = z.object({
   category: ComponentCategorySchema,
   summary: z.string().describe("What you found in this category. Say so plainly if nothing."),
-  findings: z.array(DraftFindingSchema).default([]),
 });
 
 export const DraftPolicyAlignmentSchema = z.object({
@@ -138,7 +166,15 @@ export const AssessmentDraftSchema = z.object({
   summary: z.string().describe("Plain-language summary of the repository's data-sovereignty posture."),
   components: z
     .array(DraftComponentSchema)
-    .describe("One entry per component category. Answer all of them, including the ones with nothing to report."),
+    .describe(
+      "One summary per component category. Answer all of them, including the ones with nothing to report.",
+    ),
+  findings: z
+    .array(DraftFindingSchema)
+    .default([])
+    .describe(
+      "Every finding, in one flat list. Each names the category it belongs under. Report each real thing once, no matter how many categories it touches.",
+    ),
   policyAlignment: z
     .array(DraftPolicyAlignmentSchema)
     .default([])
@@ -187,21 +223,17 @@ export async function buildNarrowedDraftSchema() {
   const ruleMembers: [string, ...string[]] = [firstRule.id, ...rules.slice(1).map((rule) => rule.id)];
 
   return AssessmentDraftSchema.extend({
-    components: z.array(
-      DraftComponentSchema.extend({
-        findings: z
-          .array(
-            DraftFindingSchema.extend({
-              providerId: z
-                .enum(providerMembers)
-                .describe(
-                  `Which provider record this involves. "${NO_MATCHING_RECORD}" if the registry has no record for the vendor; "${SELF_HOSTED}" if this runs inside the deployment's own infrastructure and is not a third party.`,
-                ),
-            }),
-          )
-          .default([]),
-      }),
-    ),
+    findings: z
+      .array(
+        DraftFindingSchema.extend({
+          providerId: z
+            .enum(providerMembers)
+            .describe(
+              `Which provider record this involves. "${NO_MATCHING_RECORD}" if the registry has no record for the vendor; "${SELF_HOSTED}" if this runs inside the deployment's own infrastructure and is not a third party.`,
+            ),
+        }),
+      )
+      .default([]),
     policyAlignment: z
       .array(
         DraftPolicyAlignmentSchema.extend({
@@ -252,16 +284,37 @@ export const DataMovementFindingSchema = z.object({
   activePath: z.boolean(),
   destinationJurisdiction: z.string(),
   crossesBorder: z.boolean().optional(),
+  /** The repository-configured region, when the finding reported one. */
+  configuredRegion: z.string().optional(),
+  /** The category this finding is filed under. */
+  category: ComponentCategorySchema,
+  /** Other categories it is relevant to, where it appears as a cross-reference. */
+  alsoRelevantTo: z.array(ComponentCategorySchema).default([]),
   riskLevel: RiskLevelSchema,
   evidence: z.array(EvidenceSchema),
   notes: z.string().optional(),
 });
 export type DataMovementFinding = z.infer<typeof DataMovementFindingSchema>;
 
+/**
+ * A finding filed under another category that is also relevant to this one.
+ * Enough to point a reader at it, not a second copy of it.
+ */
+export const CrossReferenceSchema = z.object({
+  name: z.string(),
+  /** The category the finding is reported under in full. */
+  category: ComponentCategorySchema,
+  riskLevel: RiskLevelSchema,
+});
+export type CrossReference = z.infer<typeof CrossReferenceSchema>;
+
 export const ComponentAssessmentSchema = z.object({
   category: ComponentCategorySchema,
   summary: z.string(),
+  /** Findings filed under this category. Each finding appears in exactly one. */
   findings: z.array(DataMovementFindingSchema).default([]),
+  /** Findings reported elsewhere that named this category as also relevant. */
+  alsoRelevantHere: z.array(CrossReferenceSchema).default([]),
 });
 export type ComponentAssessment = z.infer<typeof ComponentAssessmentSchema>;
 
@@ -273,7 +326,7 @@ export const PolicyAlignmentSchema = z.object({
 export type PolicyAlignment = z.infer<typeof PolicyAlignmentSchema>;
 
 export const SovereigntyAssessmentSchema = z.object({
-  schemaVersion: z.literal("2.0"),
+  schemaVersion: z.literal("3.0"),
   summary: z.string(),
   overallRisk: RiskLevelSchema,
   components: z.array(ComponentAssessmentSchema),

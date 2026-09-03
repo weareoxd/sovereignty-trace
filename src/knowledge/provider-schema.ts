@@ -78,6 +78,18 @@ const dataResidencySchema = z.object({
   configured_region_derivable_from_repository: z.boolean(),
   configured_region_reason: z.string(),
 
+  // This provider's own identifiers for its Canadian regions, e.g.
+  // ["ca-central-1", "ca-west-1"]. Only meaningful alongside
+  // configured_region_derivable_from_repository: true — it is how
+  // ../assessment/residency.ts reads a region an assessment found in the
+  // repository. Region naming is per-provider (ca-central-1, canadacentral,
+  // northamerica-northeast1 all mean Canada), so the list belongs on the
+  // record rather than in a table in the scoring code.
+  //
+  // Leaving it absent keeps the old behaviour: a configured region is
+  // reported in the prose but does not move the score off unknown.
+  canadian_regions: z.array(z.string()).min(1).optional(),
+
   // Only for providers with a fixed, published set of possible locations
   // (regardless of what a specific repository configures) — e.g. a vendor
   // that offers a small enumerated list of residency options, or one that

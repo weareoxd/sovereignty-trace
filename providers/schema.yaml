@@ -83,6 +83,18 @@ access_paths:
         customer-visible configuration exists; this path fixes its own
         location."
 
+      # Optional, and only meaningful when the line above is true. This
+      # provider's own identifiers for its Canadian regions, spelled the way
+      # the provider spells them. An assessment reports the region it read
+      # out of the repository; this is what that string is compared against
+      # to decide whether the data stays in Canada.
+      #
+      # Fill it in for any provider whose region a repository can pin. Leave
+      # it out and a configured region still shows up in the report, but the
+      # residency stays unknown — which for personal data on an active path
+      # scores High.
+      canadian_regions: [provider-canada-region-1]
+
       # Optional. Only fill these in when the provider publishes a fixed,
       # small set of possible locations regardless of what any one customer
       # configures (e.g. a vendor offering a handful of named residency

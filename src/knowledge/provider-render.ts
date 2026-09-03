@@ -69,6 +69,9 @@ function renderAccessPath(path: AccessPath, showHeading: boolean): string[] {
       ? `- The actual configured region can be determined from repository evidence: ${configuredRegionReason}`
       : `- The actual configured region cannot be determined from repository evidence alone: ${configuredRegionReason}`,
   );
+  if (dr.canadian_regions?.length) {
+    lines.push(`- Canadian regions for this provider: ${dr.canadian_regions.join(", ")}`);
+  }
   if (dr.storage_regions) lines.push(renderRegionFact("Storage region", dr.storage_regions));
   if (dr.processing_regions) lines.push(renderRegionFact("Processing region", dr.processing_regions));
   if (dr.support_access_regions) lines.push(renderRegionFact("Support access region", dr.support_access_regions));

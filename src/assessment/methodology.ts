@@ -17,8 +17,8 @@ export interface AssessmentInstructionsInput {
  * Builds the opening instructions for one assessment session.
  *
  * Provider and policy material used to be withheld here and fetched through
- * tools mid-session. It is included now. The policy text is 13.7 KB and the
- * provider index under 10 KB, which costs less than the tool round trips did
+ * tools mid-session. It is included now. The policy text is 12.3 KB and the
+ * provider index 13.9 KB, which costs less than the tool round trips did
  * and removes the failure mode where a session simply never looked something
  * up: runs answered 2, then 4, then 3, then 5, then 4 of the same six policy
  * rules.

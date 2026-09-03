@@ -52,6 +52,13 @@ Code does the rest, in [`src/assessment/`](../src/assessment/):
   agent reports a path and a range; it never writes the quoted text, so a
   fabricated quote is not expressible. A citation that doesn't resolve is
   dropped, and a finding whose citations were all dropped goes with it.
+- `evidence-handle.ts` clamps a cited range to the file, caps it at 40 lines,
+  and mints an `evidenceId` from the path, the range, and the text at it. The
+  same lines cited twice produce the same id, and any edit to those lines
+  produces a different one, which is what tells you whether a report still
+  matches the revision it was written against.
+- `nearest-path.ts` names the repository file a dropped citation most likely
+  meant. It goes in the warning next to the drop, not back to the agent.
 - `residency.ts` reads `storage_regions` and `processing_regions` off the
   provider record the agent named. A record without them — every
   customer-configurable cloud, where there is no fixed list to publish — falls
@@ -84,18 +91,31 @@ in `providers/` and the `citable_sections` in `policies/`. That matters: asked
 for the id as free text, with no list in front of it, an assessment invented
 `ches` for a record named `bcgov-ches`, and the exact-match lookup missed.
 
+`buildNarrowedDraftSchema()` is where those enums get spliced in, and it is used
+twice: `assessmentDraftJsonSchema()` converts it to JSON Schema for runtimes
+that enforce output natively, and `review.ts` keeps it as Zod for runtimes that
+don't (see [In-loop review](#in-loop-review)). One definition, two consumers.
+
 ## Methodology and knowledge
 
 - **Methodology** ([`prompts/`](../prompts/)) is instructions.
 - **Policy text** ([`policies/`](../policies/)) is pasted into every session in
-  full — 13.7 KB. It used to be fetched through tools on demand, and the result
+  full — 12.3 KB. It used to be fetched through tools on demand, and the result
   was that runs answered 2, then 4, then 3, then 5, then 4 of the same six
   policy points. Judging alignment means reading the text, so the text is there.
 - **Provider records** ([`providers/`](../providers/)) reach the agent only as
   an identification index: id, name, description, and the access-path
-  signatures (domains, package names). Under 10 KB. Residency is deliberately
-  withheld — that is what code reads off the record afterwards, and showing it
-  would invite the agent to restate it from memory.
+  signatures (domains, package names). 13.9 KB across 31 records. Residency is
+  deliberately withheld — that is what code reads off the record afterwards,
+  and showing it would invite the agent to restate it from memory.
+
+Section order in the assembled prompt is load-bearing, not cosmetic. Reference
+material the agent reads while investigating goes first; the lists it has to
+pick values *from* (the policy ids, the categories, the provider index) go
+last, next to the schema asking for them. With the provider index sitting 30 KB
+from the end, a run on a small local model answered `no_matching_record` nine
+times, including for CHES and for S3-compatible storage, both of which have
+records it had matched correctly in an earlier run.
 
 ## The SG knowledge interface
 
@@ -140,6 +160,16 @@ step 2 returns something that doesn't parse; a dropped citation is handled in
 step 3 without another round trip, because sending the whole document back for
 a re-print re-rolled every other field along with it.
 
+Repository name, commit, timing, runtime and model are computed here too rather
+than asked of the agent, so they read the same whichever runtime ran the
+session. So is the tool-call cap: `maxToolCalls` is counted off the normalized
+`tool_use` events and enforced by cancelling the session, which means it
+behaves identically for every runtime. It is a valve for a session stuck
+re-exploring rather than a default, and a repair round gets its own budget.
+
+Step 2 is also where an adapter may hold the answer to the schema before the
+session ends. See [In-loop review](#in-loop-review).
+
 ## The `CodingAgent` interface
 
 [`src/agents/agent.ts`](../src/agents/agent.ts) defines the boundary between
@@ -153,9 +183,11 @@ It deliberately normalizes only what Sovereignty Graph needs:
 - **Supplying instructions**: `instructions`, given as the session's
   opening prompt.
 - **Receiving events/results**: `session.events()` yields a normalized
-  event union (`text`, `tool_use`, `tool_result`, `error`, `result`,
-  `session_started`); `session.result()` resolves once a terminal result is
-  reached.
+  event union (`session_started`, `text`, `notice`, `tool_use`,
+  `tool_result`, `error`, `result`); `session.result()` resolves once a
+  terminal result is reached. `notice` is the adapter's own progress, kept
+  separate from `text` because `text` accumulates into the final answer and
+  an adapter's "sending this back for correction" must not.
 - **Resuming a session**: `resumeSessionId` on session options, using the
   runtime's own session id from a prior `CodingAgentResult`.
 - **Cancellation**: `session.cancel()`, backed by `AbortSignal` internally.
@@ -198,8 +230,8 @@ and [`risk.test.ts`](../src/assessment/risk.test.ts) has a case per row.
 
 Two rows are worth explaining.
 
-**Unknown residency scores the same as leaving Canada.** 16 of 21 provider
-records state no storage residency and all 30 are marked `UNVERIFIED`, so the
+**Unknown residency scores the same as leaving Canada.** 25 of 31 provider
+records state no storage residency and all 31 are marked `UNVERIFIED`, so the
 common case is "record found, residency still unknown". The prose rubric this
 replaced had no tier for it — its High tier only covered a *missing* record —
 so the agent picked one by feel, and that is most of where the run-to-run
@@ -221,6 +253,20 @@ infrastructure has not moved data across a border. Where the deployment itself
 runs is one finding under `infrastructure`, with its own provider record,
 rather than a border question restated against every component inside it.
 
+The `Canada` and `outside Canada` rows can be reached two ways: off a record's
+published `storage_regions`/`processing_regions`, or, for a record that
+publishes none, off the region the agent read out of the repository matched
+against that record's `canadian_regions`. 16 records declare the configured
+region derivable from a repository; 3 (`aws`, `microsoft-azure`,
+`google-cloud`) have their Canadian region identifiers filled in so far. A
+record missing either one falls to `unknown` rather than guessing, so a region
+string moves the score only when the record itself says what that string means.
+
+The overall risk is the highest level any finding reached, with `unknown`
+skipped rather than ranked, so one unclassifiable finding cannot drag down a
+document that has real High findings. A document reads `unknown` overall only
+when there was nothing else to go on.
+
 There is no per-finding override. A score that reads wrong means the rule is
 wrong and the rule gets changed.
 
@@ -234,6 +280,10 @@ What is left to check once the agent stops writing derived fields:
 - Were all six policy points answered.
 - Which citations were dropped, and which findings went with them.
 
+Only the first of those is an error. A draft that doesn't parse leaves no
+document, and that is the one case `runAssessment` asks again about. The rest
+are warnings: the document stands, and says where it is incomplete.
+
 What used to be here and is not any more: evidence-file existence, snippet
 matching, and checking that a provider record the agent marked "found" had
 actually been found. All three checked things the agent typed from memory, and
@@ -242,6 +292,33 @@ it no longer types any of them.
 None of this verifies that evidence actually *supports* a finding, or that the
 reasoning is sound. That would require the bespoke analysis this project
 deliberately avoids building.
+
+## In-loop review
+
+Validation runs after the session is over. For a runtime that can't enforce the
+schema on its own output, that is too late: it means accepting whatever arrives
+and salvaging it. [`review.ts`](../src/assessment/review.ts) applies the same
+narrowed schema as an accept/retry gate *inside* the agent's loop instead, while
+the agent can still fix its answer and still has the provider list in front of
+it. An invented `providerId` gets corrected there rather than resolving to
+`no_record` an hour later.
+
+It checks the shape and nothing else. Evidence used to be checked here too,
+because the agent wrote the snippets; it doesn't, so there is nothing to catch.
+
+`SwivalAgent` is the only adapter that needs it, and it drives the loop itself:
+swival's own `--reviewer` flag does exactly this, but only around a
+command-line task, and in `--acp` mode it parses and is then never invoked
+(verified against swival 1.0.41 by a reviewer that logged every call and was
+never called). `reviewUntilAcceptable` runs the same loop over `session/prompt`,
+which does work. Three rounds by default, well under swival's 15, because each
+round re-emits the whole assessment. A round that comes back unparseable is
+discarded and the earlier answer kept, rather than trading down. It is also the
+*only* correction mechanism swival has: `runAssessment`'s repair loop resumes a
+session by id, and swival reports `agentCapabilities.loadSession: false`.
+
+`ClaudeCodeAgent` skips the gate, because the SDK enforces `outputSchema`
+natively. The two runtimes reach a conforming answer by different routes.
 
 ## Adding a new agent runtime
 
@@ -264,7 +341,10 @@ deliberately avoids building.
    the answer channel and read it back directly. `src/agents/swival.ts`'s
    `buildPromptText` / `resolveFinalAnswer` / `tryParseJson` is a worked
    example of all three layers: output file, then chat-text parse, then one
-   corrective nudge.
+   corrective nudge. Once you have an answer, gate it with
+   `reviewAssessmentOutput` before the session ends.
+   [In-loop review](#in-loop-review) covers why that beats repairing it
+   afterwards.
 4. Nothing else in the codebase should need to change — `run-assessment.ts`
    and the CLI depend only on the `CodingAgent` interface.
 
@@ -280,7 +360,7 @@ given runtime is; `CodingAgentSession` just needs to produce the same event
 stream either way. A Codex or Copilot adapter may turn out to be an SDK call
 like Claude, a spawned CLI process like swival, or something else again.
 
-Three swival-specific behaviors were confirmed empirically (against swival
+Six swival-specific behaviors were confirmed empirically (against swival
 1.0.41) while building `SwivalAgent`, rather than being documented anywhere:
 disagreeing with any of them would silently break the adapter, so a future
 maintainer bumping swival versions should re-check them:
@@ -294,6 +374,13 @@ maintainer bumping swival versions should re-check them:
   at spawn time instead, and `session/new` must still be called with
   `mcpServers: []`. This adapter serves no MCP tools any more, but the
   constraint is recorded here because anything added later runs into it.
+- `--reviewer` is accepted on the command line alongside `--acp` and is then
+  never invoked in ACP mode; the docs' "requires a task" caveat means it only
+  wraps a command-line task. `SwivalAgent` runs that loop itself over
+  `session/prompt` instead (see [In-loop review](#in-loop-review)).
+- `agentCapabilities.loadSession` is `false`, so there is no resuming a swival
+  session by id. Anything that would be a second round trip has to happen
+  inside the live session or not at all.
 - swival accepts `--temperature`, `--seed` and `--top-p`; `SwivalAgent` pins
   the first two. The Claude Agent SDK exposes no equivalent, so
   `ClaudeCodeAgent` runs at the provider default and the two runtimes are not

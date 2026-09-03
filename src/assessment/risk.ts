@@ -44,7 +44,7 @@ export function scoreFinding({ classification, residency, activePath }: RiskInpu
   if (classification === "protected_c") return "high";
 
   if (classification === "personal_information" || classification === "protected_b") {
-    // "Unknown" and "outside Canada" score the same on purpose. 16 of 21
+    // "Unknown" and "outside Canada" score the same on purpose. 25 of 31
     // provider records state no storage residency at all, so treating unknown
     // as milder would score most of the registry as safe by default.
     return activePath ? "high" : "medium";

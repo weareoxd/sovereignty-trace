@@ -213,7 +213,7 @@ export async function listPolicyRules(): Promise<PolicyRule[]> {
 
 /**
  * The full text of every policy record, for the assessment's opening
- * instructions. These used to be fetched through tools mid-session; at 13.7 KB
+ * instructions. These used to be fetched through tools mid-session; at 12.3 KB
  * the whole set costs less than the round trips did, and inlining removes the
  * failure mode where an assessment simply never looked one up.
  */

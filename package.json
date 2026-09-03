@@ -1,11 +1,11 @@
 {
-  "name": "sovereignty-graph",
+  "name": "sovereignty-trace",
   "version": "0.1.0",
   "description": "Data-sovereignty assessments of software repositories, performed by an existing coding agent under a fixed methodology and validated against provider and policy reference material.",
   "type": "module",
   "license": "Apache-2.0",
   "bin": {
-    "sovereignty-graph": "dist/cli.js"
+    "sovereignty-trace": "dist/cli.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

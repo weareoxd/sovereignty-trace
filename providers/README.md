@@ -2,15 +2,15 @@
 
 This directory holds structured facts about where common cloud and AI
 providers store and process data, and how a repository typically indicates
-which region is in use. It's the grounding Sovereignty Graph gives the
+which region is in use. It's the grounding Sovereignty Trace gives the
 coding agent so it doesn't have to guess or hallucinate a provider's data
 residency characteristics.
 
 This material is not preloaded into an assessment session — the agent
 retrieves specific records on demand, once it has identified a provider
-worth grounding, via the SG knowledge interface
+worth grounding, via the ST knowledge interface
 ([`src/knowledge/`](../src/knowledge/), exposed to Claude Code as the
-`sg_search_providers` / `sg_get_provider` tools). `sg_get_provider` still
+`st_search_providers` / `st_get_provider` tools). `st_get_provider` still
 returns one text record per provider; the text is now rendered from the
 structured entry rather than authored freehand — see Format below.
 
@@ -54,7 +54,7 @@ organization's services.
 
 Some of these entries do not expose a stable public domain or package
 signature (BC Express Pay, Common Notify) — they're still useful as
-grounding text and as templates, but won't be found by `sg_search_providers`
+grounding text and as templates, but won't be found by `st_search_providers`
 unless the agent searches by name.
 
 ## Important caveats
@@ -72,7 +72,7 @@ unless the agent searches by name.
   assessment when a claim depends on something that should be re-verified
   against the provider's current documentation.
 - **A provider not listed here doesn't mean anything about its residency.**
-  It means Sovereignty Graph doesn't have reference material for it yet.
+  It means Sovereignty Trace doesn't have reference material for it yet.
   Say so explicitly in the finding rather than guessing.
 
 ## Format

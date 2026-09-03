@@ -1,15 +1,15 @@
 # Policy reference directory
 
 This directory holds the policy and regulatory reference material Sovereignty
-Graph gives to the coding agent as grounding for its `policyAlignment`
+Trace gives to the coding agent as grounding for its `policyAlignment`
 findings. It currently covers BC Government data-residency expectations,
 since that's the initial use case this project was built for.
 
 This material is not preloaded into an assessment session — the agent
 retrieves specific records on demand, once repository evidence raises a
-relevant sovereignty/privacy question, via the SG knowledge interface
+relevant sovereignty/privacy question, via the ST knowledge interface
 ([`src/knowledge/`](../src/knowledge/), exposed to Claude Code as the
-`sg_search_policies` / `sg_get_policy` tools). `sg_get_policy` still returns
+`st_search_policies` / `st_get_policy` tools). `st_get_policy` still returns
 one text record per policy; the text is now rendered from the structured
 entry rather than authored freehand — see Format below.
 
@@ -34,7 +34,7 @@ entry rather than authored freehand — see Format below.
   so treat it as unverified regardless of the document's `status`. Verify
   anything consequential against the authoritative source before acting on
   it.
-- **Sovereignty Graph does not interpret law.** The agent's `policyAlignment`
+- **Sovereignty Trace does not interpret law.** The agent's `policyAlignment`
   output records "does the evidence in this repository line up with what
   this document says", not a legal or compliance determination.
 - Add a new file here for another jurisdiction's policy framework the same

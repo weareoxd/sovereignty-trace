@@ -110,7 +110,7 @@ export const DraftFindingSchema = z.object({
   providerId: z
     .string()
     .describe(
-      "Which Sovereignty Graph provider record this involves. Pick from the provider index in your instructions.",
+      "Which Sovereignty Trace provider record this involves. Pick from the provider index in your instructions.",
     ),
   classification: DataClassificationSchema.describe(
     "How the data moving through here is classified. This determines the finding's risk level, so pick the tier the evidence supports rather than the safest-sounding one.",

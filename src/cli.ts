@@ -15,7 +15,7 @@ import { runAssessment } from "./run-assessment.js";
 const program = new Command();
 
 program
-  .name("sovereignty-graph")
+  .name("sovereignty-trace")
   .description("Data-sovereignty assessments of software repositories, run by a coding agent.")
   .version("0.1.0");
 

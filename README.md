@@ -1,6 +1,6 @@
-# Sovereignty Graph
+# Sovereignty Trace
 
-Sovereignty Graph performs data-sovereignty assessments of software
+Sovereignty Trace performs data-sovereignty assessments of software
 repositories, using an existing coding agent to do the actual investigation
 instead of a bespoke static-analysis engine.
 
@@ -39,7 +39,7 @@ npm run build
 npm link
 ```
 
-`npm link` puts a `sovereignty-graph` command on your PATH, symlinked to
+`npm link` puts a `sovereignty-trace` command on your PATH, symlinked to
 this checkout's `dist/`. Rebuilding (`npm run build`) is picked up
 automatically; no need to re-link. Skip this step and use `node dist/cli.js`
 directly if you'd rather not touch global npm state.
@@ -47,7 +47,7 @@ directly if you'd rather not touch global npm state.
 ## Usage
 
 ```sh
-sovereignty-graph assess <path-to-repository> [options]
+sovereignty-trace assess <path-to-repository> [options]
 ```
 
 Options:
@@ -72,7 +72,7 @@ for supported auth methods.
 ### As a library
 
 ```ts
-import { ClaudeCodeAgent, runAssessment, renderMarkdownReport } from "sovereignty-graph";
+import { ClaudeCodeAgent, runAssessment, renderMarkdownReport } from "sovereignty-trace";
 
 const { agentResult, validation } = await runAssessment({
   agent: new ClaudeCodeAgent(),
@@ -145,7 +145,7 @@ src/
     review.ts           accept/retry gate applied to an answer before a session ends
     evidence-handle.ts  stable citation key for a file and line range
     nearest-path.ts     suggests the file a bad citation most likely meant
-  knowledge/      read-only SG knowledge API over providers/ and policies/
+  knowledge/      read-only ST knowledge API over providers/ and policies/
   cli.ts          CLI entrypoint
   prompts.ts      loads prompts/ (role + methodology instructions)
   report.ts       Markdown report rendering
@@ -158,7 +158,7 @@ examples/        example runs
 docs/            architecture and design notes
 ```
 
-## What Sovereignty Graph deliberately does not do
+## What Sovereignty Trace deliberately does not do
 
 - No custom parsers, taint tracking, sink signatures, or Terraform/IaC
   parsing. The coding agent reads and reasons about the repository the way

@@ -8,7 +8,7 @@ import { providerEntrySchema, type ProviderEntry } from "./provider-schema.js";
 import { renderProvider } from "./provider-render.js";
 
 /**
- * Loads the Markdown documents backing one Sovereignty Graph knowledge
+ * Loads the Markdown documents backing one Sovereignty Trace knowledge
  * directory (policy-sources/, ...). Each file becomes one record, keyed by
  * its filename (without extension). `README.md` is skipped — it documents
  * the directory, it isn't a record.

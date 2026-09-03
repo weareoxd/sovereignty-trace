@@ -1,6 +1,6 @@
 # Examples
 
-Sovereignty Graph works against any local repository. There's no bundled
+Sovereignty Trace works against any local repository. There's no bundled
 sample repository yet — the simplest way to see it end to end is to run it
 against this project itself, since it's a small, self-contained TypeScript
 codebase with a couple of real external integrations to find (the Claude

@@ -40,7 +40,7 @@ export type ResidencyStatus =
 
 export interface ResidencyFacts {
   status: ResidencyStatus;
-  /** Whether a record for this id exists in SG provider knowledge. */
+  /** Whether a record for this id exists in ST provider knowledge. */
   providerAvailable: boolean;
   /** Human-readable destination, e.g. "Canada" or "European Union, United States". */
   destinationJurisdiction: string;
@@ -77,7 +77,7 @@ export async function resolveResidency(
     return {
       status: "no_record",
       providerAvailable: false,
-      destinationJurisdiction: "unknown (no SG provider record)",
+      destinationJurisdiction: "unknown (no ST provider record)",
     };
   }
 
@@ -88,7 +88,7 @@ export async function resolveResidency(
     return {
       status: "no_record",
       providerAvailable: false,
-      destinationJurisdiction: "unknown (no SG provider record)",
+      destinationJurisdiction: "unknown (no ST provider record)",
     };
   }
 

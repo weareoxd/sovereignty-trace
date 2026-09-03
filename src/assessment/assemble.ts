@@ -163,6 +163,6 @@ function referenceFor(rule: PolicyRule) {
 
 async function providerDisplayName(providerId: string): Promise<string> {
   if (providerId === SELF_HOSTED) return "Self-hosted (not a third party)";
-  if (providerId === NO_MATCHING_RECORD) return "No Sovereignty Graph record";
+  if (providerId === NO_MATCHING_RECORD) return "No Sovereignty Trace record";
   return (await getProvider(providerId))?.title ?? providerId;
 }

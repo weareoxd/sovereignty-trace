@@ -13,7 +13,7 @@ about arbitrary codebases, following imports and configuration across
 files, and running shell commands to inspect a repository the way an
 engineer would.
 
-Sovereignty Graph instead launches and controls an existing coding agent to
+Sovereignty Trace instead launches and controls an existing coding agent to
 do the investigation, and keeps its own responsibility narrow:
 
 1. Control the coding-agent process (start it, feed it instructions, read
@@ -117,7 +117,7 @@ from the end, a run on a small local model answered `no_matching_record` nine
 times, including for CHES and for S3-compatible storage, both of which have
 records it had matched correctly in an earlier run.
 
-## The SG knowledge interface
+## The ST knowledge interface
 
 [`src/knowledge/`](../src/knowledge/) is a small, runtime-independent,
 read-only API over `providers/` and `policies/`. It does no reasoning; it
@@ -133,9 +133,9 @@ For the assessment pipeline the relevant functions are `buildProviderIndex()`,
 
 ### No MCP server
 
-There was one, exposing `sg_search_providers`, `sg_get_provider`,
-`sg_search_policies`, `sg_get_policy`, `sg_get_policy_source` and
-`sg_cite_evidence` — in-process for Claude Code, as a spawned stdio subprocess
+There was one, exposing `st_search_providers`, `st_get_provider`,
+`st_search_policies`, `st_get_policy`, `st_get_policy_source` and
+`st_cite_evidence` — in-process for Claude Code, as a spawned stdio subprocess
 for swival. It is gone. Policy text is inlined, provider knowledge is split
 into an index for the agent and entries for code, and citations are resolved
 against the repository rather than minted through a tool. Both adapters keep
@@ -144,7 +144,7 @@ their own file tools, so neither is blinded.
 ## Pipeline
 
 ```
-Sovereignty Graph (CLI / library)
+Sovereignty Trace (CLI / library)
  0. gather repo facts (languages, file count, ignore patterns)          [code]
  1. build the brief: role + methodology + provider index + policy text  [code]
  2. investigate; return a draft of observations                        [agent]
@@ -173,8 +173,8 @@ session ends. See [In-loop review](#in-loop-review).
 ## The `CodingAgent` interface
 
 [`src/agents/agent.ts`](../src/agents/agent.ts) defines the boundary between
-Sovereignty Graph and whatever runtime actually performs the investigation.
-It deliberately normalizes only what Sovereignty Graph needs:
+Sovereignty Trace and whatever runtime actually performs the investigation.
+It deliberately normalizes only what Sovereignty Trace needs:
 
 - **Starting a session**: `startSession({ cwd, instructions, ... })`.
 - **Setting the repository working directory**: `cwd` on session options —
@@ -198,7 +198,7 @@ What it deliberately does **not** normalize: tool names and behavior,
 permission models, cost/usage accounting detail, or anything else specific
 to one runtime. `CodingAgentEvent`'s `tool_use`/`tool_result` variants carry
 runtime-native tool names and payloads as-is rather than mapping them to a
-shared vocabulary — Sovereignty Graph only needs to observe and log them,
+shared vocabulary — Sovereignty Trace only needs to observe and log them,
 not act on them.
 
 [`src/agents/claude-code.ts`](../src/agents/claude-code.ts) is the only

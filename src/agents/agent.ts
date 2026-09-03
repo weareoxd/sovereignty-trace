@@ -1,7 +1,7 @@
 /**
- * CodingAgent is the boundary between Sovereignty Graph and whatever coding
+ * CodingAgent is the boundary between Sovereignty Trace and whatever coding
  * agent runtime actually investigates a repository (Claude Code, Codex,
- * Copilot, ...). It normalizes only the capabilities Sovereignty Graph
+ * Copilot, ...). It normalizes only the capabilities Sovereignty Trace
  * needs: starting a session against a repository, supplying instructions,
  * streaming events, resuming, cancellation, and requesting structured
  * output. It does not try to hide runtime-specific behavior beyond that.

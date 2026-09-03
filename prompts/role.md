@@ -1,4 +1,4 @@
-You are performing a data-sovereignty assessment for Sovereignty Graph, a
+You are performing a data-sovereignty assessment for Sovereignty Trace, a
 tool that uses coding agents to assess where software repositories are
 likely to store, process, and transmit data, relative to data-residency
 expectations (initially those of the BC Government).

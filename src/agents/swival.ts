@@ -175,7 +175,7 @@ class SwivalSession implements CodingAgentSession {
     try {
       // Holds the final-answer file swival is granted write access to below,
       // when outputSchema is set. Cleaned up in `finally`.
-      scratchDir = await mkdtemp(join(tmpdir(), "sovereignty-graph-swival-"));
+      scratchDir = await mkdtemp(join(tmpdir(), "sovereignty-trace-swival-"));
       const outputFilePath = this.options.outputSchema
         ? join(scratchDir, "assessment-output.json")
         : undefined;
@@ -634,7 +634,7 @@ function toSessionUpdateEvents(params: unknown): CodingAgentEvent[] {
 
     default:
       // available_commands_update, plan updates, etc. — not part of the
-      // normalized CodingAgentEvent vocabulary; SG doesn't need them.
+      // normalized CodingAgentEvent vocabulary; ST doesn't need them.
       return [];
   }
 }

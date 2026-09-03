@@ -9,7 +9,7 @@ import {
 import type { ProviderEntry } from "./provider-schema.js";
 
 /**
- * The read-only Sovereignty Graph knowledge API over the provider
+ * The read-only Sovereignty Trace knowledge API over the provider
  * (providers/) and policy (policies/) reference material.
  *
  * This material used to reach the coding agent only through tools it called
@@ -97,7 +97,7 @@ function snippetOf(content: string, query?: string): string {
   return (lines.find((line) => !line.startsWith("#")) ?? lines[0] ?? "").slice(0, 240);
 }
 
-/** Searches Sovereignty Graph's provider (cloud/AI vendor data-residency) knowledge by keyword. */
+/** Searches Sovereignty Trace's provider (cloud/AI vendor data-residency) knowledge by keyword. */
 export async function searchProviders(query: string): Promise<KnowledgeSearchHit[]> {
   return searchDocs(await loadProviders(), query);
 }
@@ -167,7 +167,7 @@ function collapse(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-/** Searches Sovereignty Graph's policy (BC Government data-residency/privacy) knowledge by keyword. */
+/** Searches Sovereignty Trace's policy (BC Government data-residency/privacy) knowledge by keyword. */
 export async function searchPolicies(query: string): Promise<KnowledgeSearchHit[]> {
   return searchDocs(await loadPolicies(), query);
 }

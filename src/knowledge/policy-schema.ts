@@ -10,7 +10,7 @@ import { z } from "zod";
  * answer (see ./api.ts `listPolicyRules`), so adding one here adds a question
  * to every future assessment.
  *
- * A policy document is not evaluated by any code — unlike a rule engine, SG
+ * A policy document is not evaluated by any code — unlike a rule engine, ST
  * gives this text to the coding agent as grounding and lets the agent judge
  * alignment itself (see policyAlignment in ../assessment/schema.ts). What
  * structure buys here is the same thing it bought providers: every citable

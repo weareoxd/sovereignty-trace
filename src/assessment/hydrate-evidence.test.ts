@@ -12,7 +12,7 @@ let repositoryPath: string;
 const files = [FILE];
 
 before(async () => {
-  repositoryPath = await mkdtemp(join(tmpdir(), "sg-hydrate-"));
+  repositoryPath = await mkdtemp(join(tmpdir(), "st-hydrate-"));
   const absolute = join(repositoryPath, FILE);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, LINES.join("\n"), "utf8");

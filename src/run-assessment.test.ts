@@ -19,7 +19,7 @@ const HALLUCINATED_FILE = "backend/src/common/guards/auth.jwt-strategy.ts";
 let repositoryPath: string;
 
 before(async () => {
-  repositoryPath = await mkdtemp(join(tmpdir(), "sg-run-"));
+  repositoryPath = await mkdtemp(join(tmpdir(), "st-run-"));
   const absolute = join(repositoryPath, REAL_FILE);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, `${REAL_SNIPPET}\n  constructor() {}\n}\n`, "utf8");
